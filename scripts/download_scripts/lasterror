@@ -1,0 +1,10 @@
+Need up update to 1979-2017 mean
+Traceback (most recent call last):
+  File "./Model_Damped_Anomaly_Persistence.py", line 192, in <module>
+      concat_dim='time', autoclose=True, parallel=True)
+        File "/home/disk/sipn/nicway/anaconda3/envs/esio/lib/python3.6/site-packages/xarray/backends/api.py", line 602, in open_mfdataset
+	    raise IOError('no files to open')
+	    OSError: no files to open
+	    One of the commands has failed! Mailing for help.
+	    mail: You must specify to-addr recipients when using -s, -c, -b, or -r
+	    

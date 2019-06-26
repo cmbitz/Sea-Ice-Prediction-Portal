@@ -1,0 +1,17 @@
+name: ESIO
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - numpy
+  - pandas
+  - gcsfs
+  - xarray==0.10.8
+  - dask
+  - zarr
+  - matplotlib
+  - seaborn
+  - proj4
+  - cartopy
+  - pip:
+    - cython
