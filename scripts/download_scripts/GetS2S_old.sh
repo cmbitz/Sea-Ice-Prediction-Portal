@@ -23,8 +23,8 @@ source activate esio
 failfunction()
 {
     if [ "$1" != 0 ]
-    then echo "One of the commands has failed! Mailing for help."
-        mail -s "Error in Daily SIPN2 run."  $EMAIL <<< $2
+    then echo "One of the commands has failed! NOT Mailing for help."
+#        mail -s "Error in Daily SIPN2 run."  $EMAIL <<< $2
 	exit
     fi
 }

@@ -18,3 +18,5 @@ notebooks/ESIO_DATA.pkl
 .cache/
 .pytest_cache/
 notebooks/sipn
+notebooks/bilinear_1001x720_304x448.nc
+notebooks/nearest_s2d_1251x4500_304x448.nc

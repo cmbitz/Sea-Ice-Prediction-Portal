@@ -36,7 +36,7 @@ https://software.ecmwf.int/wiki/display/S2S/Models
 
 # Check user defined configuraiton file
 if len(sys.argv) < 2:
-    raise ValueError('Requires either one arguments [recent] \n or two [start_year, end_yaer] [start_month, end_month] (inclusive) ')
+    raise ValueError('Requires either one arguments [recent] \n or two [start_year, end_year] [start_month, end_month] (inclusive) ')
 print('system argument', sys.argv[1])
 
 # Get name of configuration file/module
