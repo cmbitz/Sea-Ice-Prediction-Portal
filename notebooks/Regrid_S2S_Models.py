@@ -130,6 +130,7 @@ var_dic['ecmwfsipn'] = {'.*CI_GDS0_SFC':'sic'}
 # list of models that have month init times
 monthly_init_model = ['ecmwfsipn', 'ukmetofficesipn', 'metreofr']
 
+weird_reforecast_model = ['ecmwf','ukmo']
 
 # In[9]:
 
@@ -233,7 +234,7 @@ for runType in ['forecast','reforecast']:
 
             ds = xr.open_dataset(cf, engine='pynio')
 
-            # Some grib files do not have a init_time dim, because its assumed for the month
+            # Some grib files do not have init_time dim because its assumed for the month
             if model in monthly_init_model:
                 c_coords = list(ds.coords.dims.keys())
                 tar_coords = list(filter(re.compile('.*initial_time').match, c_coords))
@@ -242,6 +243,20 @@ for runType in ['forecast','reforecast']:
                     ds.coords['initial_time1_hours'] = datetime.datetime(int(cf.split('.')[0].split('_')[1]), 
                                                                   int(cf.split('.')[0].split('_')[2]), 1)
                     ds = ds.expand_dims('initial_time1_hours')
+
+            # Some grib reforecast files do not have init_time dim because they are weird
+            if (model in weird_reforecast_model) & (runType=='reforecast'):
+                itime = cf.split('.')[0].split('_')[1]
+                #print('itime is ',np.datetime64(itime))
+                year = int(itime.split('-')[0])
+                month = int(itime.split('-')[1])
+                day = int(itime.split('-')[2])
+                #print(year, month, day)
+                itimefancy = datetime.datetime(year,month,day)
+                #print(itimefancy)
+                ds.coords['initial_time0_hours'] = itimefancy
+                ds = ds.expand_dims('initial_time0_hours')
+                #print(ds)
 
             # Test we have initial_time0_hours or initial_time1_hours
             if ('initial_time0_hours' not in ds.coords) & ('initial_time1_hours' not in ds.coords):
@@ -273,7 +288,7 @@ for runType in ['forecast','reforecast']:
 
             # Check only data from one month (download bug)
             cm = pd.to_datetime(ds.init_time.values).month
-            if model not in monthly_init_model:
+            if model not in np.append(monthly_init_model,weird_reforecast_model):
                 if np.diff(cm).max() > 0:
                     fm = int(cf.split('.')[0].split('_')[2]) # Target month in file
                     print("Found dates outside month, removing...")
