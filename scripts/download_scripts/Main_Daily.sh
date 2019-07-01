@@ -121,7 +121,7 @@ python "./plot_Regional_Extent.py"
 failfunction "$?" "plot_Regional_Extent.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
 # Maps takes about 7-10 min to make one init_times set of figures (each has 10 lead times x 3 metrics)
-python "./plot_Maps_Fast_from_database.py" 
+python "./plot_PanArcticMaps_Fast_from_database.py" 
 failfunction "$?" "plot_Maps_Fast_from_database.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
 # Evaluation of SIC forecasts
