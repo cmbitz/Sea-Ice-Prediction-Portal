@@ -120,7 +120,7 @@ for iweek in np.arange(0,10,1):
     print('for week  ',iweek,' models are:' ,models_2_plot_master[iweek])
 
 
-# In[5]:
+# In[6]:
 
 
 # Plotting Info
@@ -147,7 +147,7 @@ start_t = datetime.datetime(1950, 1, 1) # datetime.datetime(1950, 1, 1)
 # Params for this plot
 Ndays = 7 # time period to aggregate maps to (default is 7)
 Npers =  9 # 5 number of periods to plot (from current date) (default is 14)
-NweeksUpdate = 9 #3 # 3 Always update the most recent NweeksUpdate periods
+NweeksUpdate = 5 #3 # 3 Always update the most recent NweeksUpdate periods
 init_slice = np.arange(start_t, cd, datetime.timedelta(days=Ndays)).astype('datetime64[ns]')
 init_slice = init_slice[-Npers:] # Select only the last Npers of periods (weeks) since current date
 print(init_slice)
@@ -168,7 +168,7 @@ int_2_days_dict = dict(zip(np.arange(0,da_slices.size), da_slices.values))
 days_2_int_dict = {v: k for k, v in int_2_days_dict.items()}
 
 
-# In[6]:
+# In[7]:
 
 
 # Get median ice edge by DOY
@@ -179,17 +179,17 @@ mean_1980_2010_sic = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_
 mean_1980_2010_SIP = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_nc', 'hist_SIP_1980_2010.nc')).sip    
 
 
-# In[7]:
+# In[8]:
 
 
 def get_figure_init_times(fig_dir):
     # Get list of all figures
     fig_files = glob.glob(os.path.join(fig_dir,'*.png'))
-    init_times = list(reversed(sorted(list(set([os.path.basename(x).split('_')[4] for x in fig_files])))))
+    init_times = list(reversed(sorted(list(set([os.path.basename(x).split('_')[3] for x in fig_files])))))
     return init_times
 
 
-# In[8]:
+# In[9]:
 
 
 def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpdate=3):
@@ -211,7 +211,7 @@ def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpda
     return ds_status
 
 
-# In[9]:
+# In[10]:
 
 
 ds_region = xr.open_dataset(os.path.join(E.grid_dir, 'sio_2016_mask_Update.nc'))
@@ -225,7 +225,7 @@ reg2plot = (2,3,4,(6,7),(8,9),(10,11),(12,13),15)
 print(reg2plot)
 
 
-# In[10]:
+# In[11]:
 
 
 def Update_PanArctic_Maps():
@@ -420,7 +420,7 @@ def Update_PanArctic_Maps():
                         # Lat and Long feilds have round off differences, so set to same here
                         ds_model['lat'] = ds_region.lat
                         ds_model['lon'] = ds_region.lon
-                        ds_model = ds_model.where(ds_region.mask, other = np.nan)
+                        ds_model = ds_model.where(ds_region.mask<20, other = np.nan)
 
                         p[i] = ds_model.plot.pcolormesh(ax=axes[i], x='lon', y='lat', 
                                           transform=ccrs.PlateCarree(),
@@ -507,7 +507,7 @@ def Update_PanArctic_Maps():
     print("Finished plotting panArctic Maps.")
 
 
-# In[11]:
+# In[12]:
 
 
 if __name__ == '__main__':
@@ -532,3 +532,5 @@ if __name__ == '__main__':
         # Call function
         Update_PanArctic_Maps()
 
+
+    client.close()

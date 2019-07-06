@@ -79,10 +79,9 @@ sns.set_context("talk", font_scale=1.5, rc={"lines.linewidth": 2.5})
 
 
 E = ed.EsioData.load()
-# Directories
-all_models = ['ecmwfsipn','ukmetofficesipn','bom', 'ncep', 'ukmo', 
-              'eccc', 'kma', 'cma', 'ecmwf', 'hcmr', 'isaccnr',
-              'jma', 'metreofr'] 
+# Directories (exclode bom, ecc, hcmr, isaccnr, jma  since they do not predict sea ice)
+all_models = ['ecmwfsipn','ukmetofficesipn','ncep', 'ukmo', 
+              'kma', 'cma', 'ecmwf','metreofr'] 
 # all_models = [ 'ukmetofficesipn']
 updateall = False
 cvar = 'sic'
