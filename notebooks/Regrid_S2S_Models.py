@@ -129,7 +129,7 @@ var_dic['ecmwfsipn'] = {'.*CI_GDS0_SFC':'sic'}
 # list of models that have month init times
 monthly_init_model = ['ecmwfsipn', 'ukmetofficesipn', 'metreofr']
 
-weird_reforecast_model = ['ecmwf','ukmo']
+weird_reforecast_model = ['ecmwf','ukmo','metreofr']
 
 # In[9]:
 
@@ -185,7 +185,7 @@ def test_plot():
 
 
 # For both forecast and reforecast
-for runType in ['forecast','reforecast']: 
+for runType in ['forecast']: 
     print('Working on...',runType)
     # For each model
     for model in all_models:

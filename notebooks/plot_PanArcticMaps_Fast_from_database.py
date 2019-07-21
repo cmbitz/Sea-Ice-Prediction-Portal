@@ -23,9 +23,9 @@ GNU General Public License v3.0
 Plot forecast maps with all available models.
 '''
 
-#get_ipython().magic('matplotlib inline')
-#get_ipython().magic('load_ext autoreload')
-#get_ipython().magic('autoreload')
+
+
+
 import matplotlib
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -81,10 +81,6 @@ E.icePredicted['climatology'] = True
 
 mod_dir = E.model_dir
 
-
-# In[4]:
-
-
 # Define models to plot
 models_2_plot = list(E.model.keys())
 models_2_plot = [x for x in models_2_plot if x not in ['piomas','MME','MME_NEW','uclsipn']] # remove some models
@@ -102,6 +98,21 @@ models_2_plot.insert(1, models_2_plot.pop(-1)) # Move climatology from last to s
 models_2_plot.insert(13, models_2_plot.pop(4)) # Move yopp
 models_2_plot.insert(6, models_2_plot.pop(11)) # Move NESM-ext
 models_2_plot.insert(7, models_2_plot.pop(10)) # Move KMA
+models_2_plot.insert(7, models_2_plot.pop(15)) # Move fgoalssipn
+#models_2_plot[1]='climo10yrs'
+print(models_2_plot)
+
+# add missing info for climo10yrs for future
+E.model_color['climo10yrs'] = (0,0,0)
+E.model_linestyle['climo10yrs'] = '--'
+E.model_marker['climo10yrs'] = '*'
+E.model['climo10yrs'] = {'model_label':'Climatology\nLast 10 Yrs'}
+E.icePredicted['climo10yrs'] = True
+#models_2_plot[1]='climo10yrs'
+
+
+# In[4]:
+
 
 print(models_2_plot)
 
@@ -111,7 +122,7 @@ models_2_plot_master ={0: models_2_plot,
                        3: models_2_plot[0:14],
                        4: models_2_plot[0:13],
                        5: models_2_plot[0:8],
-                       6: models_2_plot[0:7],
+                       6: models_2_plot[0:8],
                        7: models_2_plot[0:7],
                        8: models_2_plot[0:7],
                        9: models_2_plot[0:7]  }
@@ -120,7 +131,7 @@ for iweek in np.arange(0,10,1):
     print('for week  ',iweek,' models are:' ,models_2_plot_master[iweek])
 
 
-# In[6]:
+# In[5]:
 
 
 # Plotting Info
@@ -146,8 +157,8 @@ cd = datetime.datetime(cd.year, cd.month, cd.day) # Set hour min sec to 0.
 start_t = datetime.datetime(1950, 1, 1) # datetime.datetime(1950, 1, 1)
 # Params for this plot
 Ndays = 7 # time period to aggregate maps to (default is 7)
-Npers =  9 # 5 number of periods to plot (from current date) (default is 14)
-NweeksUpdate = 5 #3 # 3 Always update the most recent NweeksUpdate periods
+Npers =  5 # 5 number of periods to plot (from current date) (default is 14)
+NweeksUpdate = 3 #3 # 3 Always update the most recent NweeksUpdate periods
 init_slice = np.arange(start_t, cd, datetime.timedelta(days=Ndays)).astype('datetime64[ns]')
 init_slice = init_slice[-Npers:] # Select only the last Npers of periods (weeks) since current date
 print(init_slice)
@@ -168,7 +179,7 @@ int_2_days_dict = dict(zip(np.arange(0,da_slices.size), da_slices.values))
 days_2_int_dict = {v: k for k, v in int_2_days_dict.items()}
 
 
-# In[7]:
+# In[6]:
 
 
 # Get median ice edge by DOY
@@ -179,7 +190,7 @@ mean_1980_2010_sic = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_
 mean_1980_2010_SIP = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_nc', 'hist_SIP_1980_2010.nc')).sip    
 
 
-# In[8]:
+# In[7]:
 
 
 def get_figure_init_times(fig_dir):
@@ -189,7 +200,7 @@ def get_figure_init_times(fig_dir):
     return init_times
 
 
-# In[9]:
+# In[8]:
 
 
 def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpdate=3):
@@ -211,7 +222,7 @@ def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpda
     return ds_status
 
 
-# In[10]:
+# In[9]:
 
 
 ds_region = xr.open_dataset(os.path.join(E.grid_dir, 'sio_2016_mask_Update.nc'))
@@ -223,6 +234,16 @@ reg2plot = (2,3,4,6,7,8,9,10,11,12,13,15)
 reg2plot = (2,3,4,(6,7),(8,9),(10,11),(12,13),15)
 
 print(reg2plot)
+
+
+# In[10]:
+
+
+#plt.figure()
+#tmp=ds_region.mask
+#tmp=tmp.where(tmp<20,other=np.nan)
+###ds_region.mask.plot()
+#tmp.plot()
 
 
 # In[11]:
@@ -513,7 +534,7 @@ def Update_PanArctic_Maps():
 if __name__ == '__main__':
     # Start up Client
     client = Client(n_workers=8)
-#     dask.config.set(scheduler='threads')  # overwrite default with threaded scheduler
+    # dask.config.set(scheduler='threads')  # overwrite default with threaded scheduler
     
     #############################################################
     # Load in Data
@@ -533,4 +554,9 @@ if __name__ == '__main__':
         Update_PanArctic_Maps()
 
 
-    client.close()
+# In[ ]:
+
+
+#client.close()
+
+

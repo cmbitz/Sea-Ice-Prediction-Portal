@@ -18,6 +18,8 @@ source $HOME/.bashrc
 #source /home/disk/sipn/nicway/.bashrc  
 source /home/disk/sipn/bitz/python/ESIO/scripts/path_file.sh
 source activate esio
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
+
 which python
 
 failfunction()
@@ -79,7 +81,7 @@ failfunction "$?" "Interpolate_ClimoTrend_weekly_to_daily.py had an Error. See l
 
 echo "Main_6hrly: done Interpolate_ClimoTrend_weekly_to_daily"
 
-#  run for fund,  not being used for anything further. it makes a nice fig
+#  run for fun,  not being used for anything further. it makes a nice fig
 python "./Calc_Obs_DampAnomWeekly.py"
 failfunction "$?" "Calc_Obs_DampanomWeekly.py had an Error. See log." 
 #  Make the daily damped anomaly benchmark, takes a few minutes

@@ -33,7 +33,7 @@ mkdir -p $RASM_ESRL_DATA_DIR
 
 # Download
 cd $RASM_ESRL_DATA_DIR
-wget -nH --cut-dirs=20 -r -A "RASM-ESRL_4NIC*.gz" -N $data_ftp
+wget -nH --cut-dirs=20 -r -A "RASM-ESRL_4NIC_*.gz" -N $data_ftp
 
 
 cd $REPO_DIR/scripts/download_scripts/

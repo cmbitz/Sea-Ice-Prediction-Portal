@@ -106,7 +106,7 @@ def Update_Model_Aggs():
                     #print("Skipping ", os.path.basename(cf), " already imported.")
                     continue # Skip, file already imported
 
-            ds = xr.open_mfdataset(cf , chunks={'fore_time':10, 'ensemble': 5, 'init_time': 10, 'nj': 304, 'ni': 448},
+            ds = xr.open_mfdataset(cf , chunks={'fore_time':60, 'ensemble': 1, 'init_time': 3, 'nj': 304, 'ni': 448},
                                   parallel=True) # Works but is not eiffecent 5-15 mins wall time
             ds.rename({'nj':'x', 'ni':'y'}, inplace=True)
 

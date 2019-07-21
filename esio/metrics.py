@@ -112,7 +112,18 @@ def get_median_ice_edge(ds, ystart='1981', yend='2012', sic_threshold=0.15):
     median_ice_fill = median_ice.where(median_ice.hole_mask==0, other=1).sic # Fill in pole hole with 1 (so contours don't get made around it)
     return median_ice_fill
 
-
+def calc_IAD(da, sic_threshold=0.15, DOY_s=1, time_dim='time'):
+    ''' Calc the Ice Advance Day (first) by Calender Year. '''
+    da = da.rename({time_dim:'time'})
+    #dat=da.where(da.notnull(),other =0) # get rid of nan
+    #damin = dat.argmin(axis=0)  # find the time dim of min
+    #dat = dat.where(dat<damin, other =0.05)  # fill with small value before min
+    iad = (da > sic_threshold).reduce(np.argmax, dim='time') # Find index of first ice free
+    #iad = iad.where(da.isel(time=0).notnull()) # Apply Orig mask
+    # Convert to Day of Year by adding the first time
+    iad = iad + DOY_s
+    return iad
+                            
 def calc_IFD(da, sic_threshold=0.15, DOY_s=1, time_dim='time'):
     ''' Calc the Ice Free Day (first) by Calender Year. '''
     da = da.rename({time_dim:'time'})

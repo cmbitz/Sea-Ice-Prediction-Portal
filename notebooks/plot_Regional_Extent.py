@@ -69,18 +69,25 @@ variables = ['sic'] #, 'hi'
 metric1 = 'extent'
 
 
-# In[4]:
+# In[46]:
 
 
 # Initialization times to plot
 cd = datetime.datetime.now()
 cd = datetime.datetime(cd.year, cd.month, cd.day) # Assumes hours 00, min 00
-SD = cd - datetime.timedelta(days=35)  # plot init_times for previous 35 days 5 weeks
+if cd.day<22:
+    if cd.month>1:
+        SD = datetime.datetime(cd.year, cd.month-1, 1)  # plot init_times since 1st of previous mon
+    else:
+        SD = datetime.datetime(cd.year-1, 12, 1)  # plot init_times since 1st of previous mon
+else:
+    SD = cd - datetime.timedelta(days=35)  # plot init_times for previous 35 days 5 weeks
+print(SD)
 # SD = cd - datetime.timedelta(days=4*365)
 # ED = cd + datetime.timedelta(days=365)
 
 
-# In[5]:
+# In[47]:
 
 
 # Info about models runs
@@ -90,7 +97,7 @@ SD = cd - datetime.timedelta(days=35)  # plot init_times for previous 35 days 5 
 # biasCorrected = 
 
 
-# In[6]:
+# In[48]:
 
 
 #############################################################
@@ -99,7 +106,7 @@ SD = cd - datetime.timedelta(days=35)  # plot init_times for previous 35 days 5 
 E = ed.EsioData.load()
 
 
-# In[7]:
+# In[49]:
 
 
 # Load obs already aggregated by region
@@ -114,7 +121,7 @@ ds_obs_smooth = ds_obs.rolling(time=10, min_periods=1, center=True).mean()
 print(ds_obs.region_names.values)
 
 
-# In[8]:
+# In[50]:
 
 
 # Load obs already aggregated by region, these are also computed after smoothing
@@ -136,7 +143,7 @@ alpha = alpha.alpha
 print(alpha)
 
 
-# In[33]:
+# In[51]:
 
 
 maxleadtime=215
@@ -147,7 +154,7 @@ models_2_plot = [x for x in models_2_plot if x not in ['dampedAnomalyTrend','pio
 print(models_2_plot)
 
 
-# In[10]:
+# In[58]:
 
 
 cdate = datetime.datetime.now()
@@ -162,59 +169,50 @@ E.model_color['ncep']='blue'
 E.model_linestyle['usnavyncep']='-'
 E.model_linestyle['ncep']='-'
 E.model_linestyle['ecmwf']='-'
+E.model_color['fgoalssipn']='darkblue'
 
 
-# In[11]:
-
-
-cdate = datetime.datetime.now()
-
-# adjust colors to my liking
-E.model['usnavygofs']['model_label']='NRL-GOFS'
-#print(E.model_color)
-#import matplotlib.colors as clr
-E.model_color['usnavygofs']='tab:olive'
-E.model_color['usnavyncep']='tab:olive'
-E.model_color['ncep']='blue'
-E.model_linestyle['usnavyncep']='-'
-E.model_linestyle['ncep']='-'
-E.model_linestyle['ecmwf']='-'
-
-
-# In[12]:
+# In[59]:
 
 
 # list of models that have month init times, do not bunch these by week
 monthly_init_model = ['gfdlsipn','ecmwfsipn', 'ukmetofficesipn', 'metreofr','awispin','nicosipn']
 
 
-# In[13]:
+# In[60]:
 
 
 BunchByWeek = True
 
 def Daily2Weekly(ds_model,init_start_date):
     
-    print(ds_model.init_time)
+    #print(ds_model.init_time)
 
     start_t = datetime.datetime(1950, 1, 1) # datetime.datetime(1950, 1, 1)
     init_slice = np.arange(start_t, ds_model.init_time[-1].values, datetime.timedelta(days=7)).astype('datetime64[ns]')
-
+#    print('init_slice 1 ',init_slice)
+#    print('init start date ',init_start_date)
     init_slice = init_slice[init_slice>=init_start_date] # Select only the inits after init_start_date
-
+#    print('init_slice 2 ',init_slice)
+    
     da_agg = []
+    counter = 0
     for (itweek,it) in enumerate(init_slice):
-        print('---- itweek',itweek, it)
+        print('---- itweek',itweek, it, len(init_slice))
         if itweek<(len(init_slice)-1):
             thesedates = (ds_model.init_time>=init_slice[itweek]) & (ds_model.init_time<init_slice[itweek+1])
         else:
             thesedates = (ds_model.init_time>=init_slice[itweek]) & (ds_model.init_time<=ds_model.init_time[-1])
         thesedates = ds_model.init_time.where(thesedates, drop=True )
-        #print('\n start date this period :',thesedates[0])
+#        print('the dates are ', thesedates)
+        if (len(thesedates)==0):
+#            print('no dates in this weekly slice')
+            continue
+#        print('  Start date this period :',thesedates[0])
         halfwidth = (thesedates[-1]-thesedates[0])*0.5
         itweekdate = thesedates[0] + halfwidth
         itweekdate.rename({'init_time':'itweek'})
-        #print('  Middle of the period date: ', itweekdate)
+#        print('  Middle of the period date: ', itweekdate)
 
         da_itw =  ds_model.where(thesedates, drop=True ).mean(dim='init_time')
         da_itw.coords['itweek'] = itweek
@@ -223,26 +221,30 @@ def Daily2Weekly(ds_model,init_start_date):
         #print(da_itw)
         # Store in list
         da_agg.append(da_itw)
+        counter = counter + 1
 
-    if len(init_slice)>1:
+    if counter>1:
         da_agg = xr.concat(da_agg, dim='itweek')
+        da_agg=da_agg.drop('init_time')
+        da_agg.coords['init_time'] = da_agg.itweekdate
+        da_agg=da_agg.swap_dims({'itweek':'init_time'}) # drat the plot routine requires init_time as dim                
+
     else:
         da_agg = da_agg[0]
+        da_agg=da_agg.drop('init_time')
+        da_agg.coords['init_time'] = da_agg.itweekdate
+        da_agg = da_agg.expand_dims('init_time')
 
-    da_agg=da_agg.drop('init_time')
-    da_agg.coords['init_time'] = da_agg.itweekdate
-    print('\n\nda_agg\n',da_agg)
+    #print('\n\nda_agg\n',da_agg)
 
     ds_model = da_agg
     da_agg = None
-    ds_model=ds_model.swap_dims({'itweek':'init_time'}) # drat the plot routine requires init_time as dim                
-    
     return ds_model
 
 
 # # Plot Raw extents and only models that predict sea ice
 
-# In[56]:
+# In[61]:
 
 
 # cmap_c = itertools.cycle(sns.color_palette("Paired", len(E.model.keys()) ))
@@ -270,7 +272,7 @@ for cvar in variables:
         ax1 = plt.subplot(1, 1, 1) # Observations
 
         for (i, cmod) in enumerate(models_2_plot):
-#        for (i, cmod) in enumerate(['ukmo']):
+#        for (i, cmod) in enumerate(['fgoalssipn']):
 
             if not E.icePredicted[cmod]:
                 continue
@@ -289,7 +291,7 @@ for cvar in variables:
                 #print("Skipping model", cmod, "no forecast files found.")
                 continue # Skip this model
             ds_model = xr.open_mfdataset(model_forecast, concat_dim='init_time')
-            print('ds_model BEFORE messing with it ', ds_model)
+            #print('ds_model BEFORE messing with it ', ds_model)
 
             ds_model = ds_model.isel(fore_time=slice(0,maxleadtime)).Extent
 
@@ -307,7 +309,7 @@ for cvar in variables:
             if ((cmod not in monthly_init_model) & BunchByWeek):
                 ds_model = Daily2Weekly(ds_model,init_start_date)
 
-            print('ds_model AFTER messing with it ', ds_model)
+            #print('ds_model AFTER messing with it ', ds_model)
             # Select region
             #print('model regions ',ds_model.nregions)
             if (cR==99):
@@ -361,7 +363,7 @@ for cvar in variables:
         anom = ds_obs_smooth_reg - ds_climo_reg
 #        anom.plot(ax=ax1, label=str(cdate.year)+' Anom', color='y', linewidth=8)
         ds_climo_reg.plot(ax=ax1, label=str(cdate.year)+' TrendExtrap', color='gold', linewidth=6)
-
+        ds_climo = ds_climo.where(ds_climo>0, other=0)
         # compute doy for anom dataset
         DOY = [x.timetuple().tm_yday for x in pd.to_datetime(anom.time.values)]
         cc = 'k'
@@ -421,7 +423,7 @@ for cvar in variables:
         f_out = os.path.join(fig_dir, base_name_out+'.png')
         f.savefig(f_out,bbox_inches='tight',dpi=200)
         print('saved figure ',f_out)
-        mpld3.save_html(f, os.path.join(fig_dir, base_name_out+'.html'))
+#        mpld3.save_html(f, os.path.join(fig_dir, base_name_out+'.html'))
 
         # Mem clean up
         ds_model = None
@@ -429,7 +431,7 @@ for cvar in variables:
         f = None
 
 
-# In[58]:
+# In[62]:
 
 
 print(alpha.region_names.values)
@@ -445,4 +447,5 @@ print(alpha.region_names.values)
 
 
 labels
+
 

@@ -24,12 +24,11 @@ Then resamples each year into weeks and saves by year
 Also compute regional extents
 '''
 
-#get_ipython().magic('matplotlib inline')
-#get_ipython().magic('load_ext autoreload')
-#get_ipython().magic('autoreload')
+
+
+
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt, mpld3
+#import matplotlib.pyplot as plt, mpld3
 
 
 import numpy as np
@@ -326,9 +325,9 @@ print(ds_all)
 # In[ ]:
 
 
-f = plt.figure()
-ds_rough.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='k')
-ds_all.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='r')
+#f = plt.figure()  
+#ds_rough.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='k')
+#ds_all.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='r')
 
 
 # In[ ]:
@@ -353,13 +352,13 @@ if TestPlot:
     # can I reconstruct it by hand (yes)
     tmp=cyears**2*pfit[0]+cyears*pfit[1]+pfit[2]
     
-    f = plt.figure()
-    plt.plot(cyears,ytrain,marker='o',markersize=10,color='k')
-    plt.plot(cyears,rough,marker='o',markersize=10,color='g')
-    plt.plot(pred_year,newpred,marker='o',markersize=10,color='b')
-    plt.plot(cyears,tmp,marker='o',markersize=10,color='c')
+#    f = plt.figure()
+#    plt.plot(cyears,ytrain,marker='o',markersize=10,color='k')
+#    plt.plot(cyears,rough,marker='o',markersize=10,color='g')
+#    plt.plot(pred_year,newpred,marker='o',markersize=10,color='b')
+#    plt.plot(cyears,tmp,marker='o',markersize=10,color='c')
 
-    print('cyan dots are quadratic fit to lowess smoothed data')
+#    print('cyan dots are quadratic fit to lowess smoothed data')
 
 
 # In[ ]:
@@ -617,4 +616,5 @@ if update:
     file_out = os.path.join(E.obs_dir, c_product,'alpha_agg', str(Y_Start)+'_'+str(Y_End)+'_Alpha.nc')
     alpha.to_netcdf(file_out)
     print("Saved",file_out)
+
 

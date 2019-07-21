@@ -30,9 +30,9 @@ GNU General Public License v3.0
 Plot forecast maps with all available models.
 '''
 
-#get_ipython().magic('matplotlib inline')
-#get_ipython().magic('load_ext autoreload')
-#get_ipython().magic('autoreload')
+
+
+
 import matplotlib
 if not PaperPlots:
     matplotlib.use('Agg')
@@ -69,7 +69,7 @@ sns.set_style('whitegrid')
 sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 
 
-# In[3]:
+# In[5]:
 
 
 def Update_Evaluation_Maps(PaperPlots = False):
@@ -203,7 +203,10 @@ def Update_Evaluation_Maps(PaperPlots = False):
     E.model_marker['climatology'] = '*'
     E.model['climatology'] = {'model_label':'Climatology\nTrend'}
 
-
+    E.model_color['climo10yrs'] = (0,0,0)
+    E.model_linestyle['climo10yrs'] = '-'
+    E.model_marker['climo10yrs'] = ''
+    E.model['climo10yrs'] = {'model_label':'Climatology\nPast 10 Yrs'}
 
     # Aggregate over space (x,y), including all pixels in valid Arctic seas (masked above with BrierSkillScore())
     BSS_agg = SIP_BSS.mean(dim=['x','y'])
@@ -752,7 +755,7 @@ def Update_Evaluation_Maps(PaperPlots = False):
         print("Finished Eval_Weekly")
 
 
-# In[4]:
+# In[6]:
 
 
 if __name__ == '__main__':
@@ -767,4 +770,5 @@ if __name__ == '__main__':
 
 
 PaperPlots
+
 

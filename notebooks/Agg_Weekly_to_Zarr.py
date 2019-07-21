@@ -74,7 +74,7 @@ dask.config.set(scheduler='threads')  # overwrite default with threaded schedule
 # client
 
 
-# In[8]:
+# In[4]:
 
 
 #def Update_PanArctic_Maps():
@@ -110,13 +110,13 @@ init_slice = init_slice[init_slice>=init_start_date] # Select only the inits aft
 print(init_slice[0],init_slice[-1])
 
 
-# In[9]:
+# In[5]:
 
 
 init_slice
 
 
-# In[10]:
+# In[6]:
 
 
 #############################################################
@@ -144,13 +144,18 @@ mod_dir = E.model_dir
 # models_2_plot
 
 
-# In[12]:
+# In[7]:
 
+
+# In[ ]:
 
 
 #from esio import import_data_CCtest   # added some extra print statements for helping diagnose
 
 cvar = 'sic' # hard coded for now
+
+# do not read in any files for these models
+leave_out = ['noaasipn','modcansipns_3','modcansipns_4','ecmwfc','kmac','ukmoc','metreofrc','ncepc']
 
 # For each init chunk
 for IS in np.arange(0,len(init_slice),Npers): # Every fourth init date
@@ -169,6 +174,7 @@ for IS in np.arange(0,len(init_slice),Npers): # Every fourth init date
     
     # Check if dir exists
     if updateAll | (os.path.isdir(c_zarr_file)==False) | (it_start>init_slice[-1] - np.timedelta64(60,'D')):
+#    if updateAll | (os.path.isdir(c_zarr_file)==False) | (it_start>=init_slice[8]):
 
         print("Processing",it_start, it_end)
 
@@ -179,22 +185,17 @@ for IS in np.arange(0,len(init_slice),Npers): # Every fourth init date
                                                 runType=runType, 
                                                 variable=cvar, 
                                                 metrics=metrics_all[cvar],
-                                                init_range=[it_start,it_end])
+                                                init_range=[it_start,it_end],
+                                                leave_out = leave_out)
 
-        # Drop models that we don't evaluate (i.e. monthly means)
-        models_keep = [x for x in ds_m.model.values if x not in ['noaasipn','modcansipns_3','modcansipns_4']]
-        ds_m = ds_m.sel(model=models_keep)
         # Get list of dynamical models that are not observations
-        dynamical_Models = [x for x in ds_m.model.values if x not in ['Observed','climatology','dampedAnomaly','dampedAnomalyTrend']]
+        dynamical_Models = [x for x in ds_m.model.values if x not in ['Observed','climatology','climo10yrs','dampedAnomalyTrend']]
         # # Get list of all models
         # all_Models = [x for x in ds_m.model.values if x not in ['Observed']]
         # Add MME
         MME_avg = ds_m.sel(model=dynamical_Models).mean(dim='model') # only take mean over dynamical models
         MME_avg.coords['model'] = 'MME'
         ds_ALL = xr.concat([ds_m, MME_avg], dim='model')
-
-
- 
 
         ####################################
 #         print(ds_ALL)
@@ -220,7 +221,7 @@ for IS in np.arange(0,len(init_slice),Npers): # Every fourth init date
 # xr.open_zarr('/home/disk/sipn/nicway/data/model/zarr/temp/sic_2018-06-24.zarr').SIP.sel(model='MME').notnull().sum().values
 
 
-# In[14]:
+# In[ ]:
 
 
 # Combine all Zarr chunks
@@ -229,7 +230,7 @@ zarr_inits = sorted([ name for name in os.listdir(zarr_dir) if os.path.isdir(os.
 zarr_inits
 
 
-# In[15]:
+# In[ ]:
 
 
 zl = []
@@ -239,13 +240,13 @@ for c_init in zarr_inits:
 ds_Zarr = xr.concat(zl,dim='init_end')
 
 
-# In[16]:
+# In[ ]:
 
 
 print(ds_Zarr)
 
 
-# In[17]:
+# In[ ]:
 
 
 ###### ADD METADATA #################
@@ -348,14 +349,14 @@ ds_Zarr.attrs = {
 }
 
 
-# In[18]:
+# In[ ]:
 
 
 # Hack to decode strings
 # ds_Zarr['model'] = [s.decode("utf-8") for s in ds_Zarr.model.values]
 
 
-# In[19]:
+# In[ ]:
 
 
 # Save to one Big Zarr
@@ -363,8 +364,9 @@ ds_Zarr.to_zarr(os.path.join(E.data_dir,'model/zarr', cvar+'.zarr'), mode='w')
 print("Saved to Large Zarr.")
 
 
-# In[20]:
+# In[ ]:
 
 
 print(os.path.join(E.data_dir,'model/zarr', cvar+'.zarr'))
+
 

@@ -18,6 +18,7 @@ source $HOME/.bashrc
 #source /home/disk/sipn/nicway/.bashrc
 source /home/disk/sipn/bitz/python/ESIO/scripts/path_file.sh
 source activate esio
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
 
 
 failfunction()
@@ -43,16 +44,17 @@ fi
 # this is working fine but is using nic's key to download
 # will take some effort to make work for a new user
 python $REPO_DIR"/scripts/download_scripts/Download_s2s.py" "recent" 
-failfunction "$?" "Download_s2s.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+#failfunction "$?" "Download_s2s.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
-# may not be working fine, though script is probably okay. need to worry about key and add system 14 to ukmo
+# may not be working fine, though script is probably okay. takes about 12 hours or more so do by hand
 # cc has been downloading by hand 
 # python $REPO_DIR"/scripts/download_scripts/Download_C3S.py" "recent" 
 # Allowing fail of ukmo and ecmwf for now
 #failfunction "$?" "Download_C3S.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
+##### BEWARE NEEDS ATTENTION SHORTLY see sh script
 $REPO_DIR"/scripts/download_scripts/download_RASM_ESRL.sh" 
-failfunction "$?" "download_RASM_ESRL.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
+#failfunction "$?" "download_RASM_ESRL.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
 
 $REPO_DIR"/scripts/download_scripts/download_NRL_GOFS3_1.sh"
 #failfunction "$?" "download_NRL_GOFS3_1.sh had an Error. See log. (https://atmos.washington.edu/~nicway/sipn/log/)"
@@ -70,6 +72,8 @@ cd $REPO_DIR"/notebooks/" # Need to move here as some esiodata functions assume 
 
 # Import Models to sipn format
 source activate pynioNew # Required to process grib files
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
+
 python "./Regrid_S2S_Models.py"
 failfunction "$?" "Regrid_S2S_Models.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
@@ -81,6 +85,7 @@ failfunction "$?" "Regrid_CFSv2.py had an Error. See log (https://atmos.washingt
 
 wait
 source activate esio
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
 wait # Below depends on above
 
 
@@ -122,7 +127,7 @@ failfunction "$?" "plot_Regional_Extent.py had an Error. See log (https://atmos.
 
 # Maps takes about 7-10 min to make one init_times set of figures (each has 10 lead times x 3 metrics)
 python "./plot_PanArcticMaps_Fast_from_database.py" 
-failfunction "$?" "plot_Maps_Fast_from_database.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+#failfunction "$?" "plot_Maps_Fast_from_database.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
 # Evaluation of SIC forecasts
 python "./Eval_weekly_forecasts.py"

@@ -18,6 +18,8 @@ source $HOME/.bashrc
 #source /home/disk/sipn/nicway/.bashrc
 source /home/disk/sipn/bitz/python/ESIO/scripts/path_file.sh
 source activate esio
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
+
 which python
 
 # Make sure the ACF REPO_DIR environment variable is set
@@ -59,6 +61,12 @@ failfunction "$?" "Regrid_NESM.py had an Error. See log (https://atmos.washingto
 # GFDL (monthly) this data appears to be uploaded by gfdl 
 python "./Regrid_GFDL_Forecast.py"
 failfunction "$?" "Regrid_GFDL_Forecast.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+
+echo "regridding FGOALS"
+# must figure out how to automate
+#mv /home/disk/sipn/upload/fgoalssipn/forecast/FGOALS-f2_S2S_v1.3/* $DATA_DIR/model/fgoalssipn/forecast/native/orig
+#python "./Regrid_FGOALS_Forecast.py"
+#failfunction "$?" "Regrid_FGOALS_Forecast.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
 echo Finished Weekly script.
 
