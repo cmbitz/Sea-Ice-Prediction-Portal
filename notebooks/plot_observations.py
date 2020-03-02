@@ -362,7 +362,7 @@ else:
 init_slice = init_slice[init_slice>=init_start_date] # Select only the inits after init_start_date
 print('Make figs for periods range of : ',init_slice[0], ' to ',init_slice[-1])
 
-fig_dir = os.path.join(E.fig_dir, 'obs', 'NSIDC_0081' , 'verification')
+fig_dir_v = os.path.join(E.fig_dir, 'obs', 'NSIDC_0081' , 'verification')
 
 for lastdate in init_slice:
     firstdate=lastdate-np.timedelta64(6, 'D')
@@ -397,7 +397,7 @@ for lastdate in init_slice:
                                              cmap=cmap_sic, add_colorbar=False,
                                              vmin=0, vmax=1)
         axes[0].set_title('')
-        f.savefig(os.path.join(fig_dir,datestring[0:4],'panArcticSIC_weekly_mean_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
+        f.savefig(os.path.join(fig_dir_v,datestring[0:4],'panArcticSIC_weekly_mean_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
         
         (f, axes) = ice_plot.multi_polar_axis(ncols=2, nrows=1, Nplots=2)
         f.set_size_inches(8, 4)
@@ -406,7 +406,7 @@ for lastdate in init_slice:
                                              cmap=cmap_diff_2, add_colorbar=False,
                                              vmin=-1, vmax=1)
         axes[0].set_title('')
-        f.savefig(os.path.join(fig_dir,datestring[0:4],'panArcticSIC_weekly_anom_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
+        f.savefig(os.path.join(fig_dir_v,datestring[0:4],'panArcticSIC_weekly_anom_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
 
 
 # In[ ]:
