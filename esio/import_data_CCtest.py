@@ -517,7 +517,7 @@ def load_1_iceBridgeQL(filein=None, start_pt=0):
     return ds
 
 
-def _load_MME_by_init_end(E=None, runType=None, variable=None, metric=None, init_range=None):
+def _load_MME_by_init_end(E=None, runType=None, variable=None, metric=None, init_range=None, leave_out=None):
     ''' Loads and concatenates netcdf files of weekly averaged forecasts from multiple models.
     ----------
     Parameters:
@@ -561,11 +561,18 @@ def _load_MME_by_init_end(E=None, runType=None, variable=None, metric=None, init
                        
         # Get list of models (dirs)
         mod_dirs = sorted([ name for name in os.listdir(c_init_path) if os.path.isdir(os.path.join(c_init_path, name)) ])
+        print(mod_dirs)
+        
+        # Drop models that we don't evaluate (i.e. monthly means)
+        #leave_out = ['noaasipn','modcansipns_3','modcansipns_4','ecmwfc','kmac','ukmoc','metreofrc','ncepc']
+        models_keep = [x for x in mod_dirs if x not in leave_out]
+        mod_dirs=models_keep
+        print(mod_dirs)
         
         ds_mod_l = []
         for c_mod in mod_dirs:
 
-            print('Opening_Files for model: ', c_mod, ' in ', os.path.join(metric_dir, c_init, c_mod))
+            print('/n/n/n Opening_Files for model: ', c_mod, ' in ', os.path.join(metric_dir, c_init, c_mod))
             # Open files
             allfiles = sorted(glob.glob(os.path.join(metric_dir, c_init, c_mod,'*.nc')))
             if not allfiles:
@@ -573,6 +580,7 @@ def _load_MME_by_init_end(E=None, runType=None, variable=None, metric=None, init
             ds_i = xr.open_mfdataset(allfiles, drop_variables=['xm','ym','time','ensemble'], 
                                      concat_dim=concat_dim_time, autoclose=True, 
                                      parallel=True) # We drop these coords here because otherwise concat fails below.
+            print('ds_i ', ds_i)
             print('fore_times ', ds_i.fore_time)
             print('dups are ',[item for item, count in collections.Counter(ds_i.fore_time.values).items() if count > 1])
             
@@ -605,7 +613,7 @@ def _load_MME_by_init_end(E=None, runType=None, variable=None, metric=None, init
 
 
 
-def load_MME_by_init_end(E=None, runType=None, variable=None, metrics=None, init_range=None):
+def load_MME_by_init_end(E=None, runType=None, variable=None, metrics=None, init_range=None, leave_out=None):
     ''' Loads and concatenates netcdf files of weekly averaged forecasts from multiple models.
     ----------
     Parameters:
@@ -629,7 +637,8 @@ def load_MME_by_init_end(E=None, runType=None, variable=None, metrics=None, init
     ds_l = []
     for cmetric in metrics:
         print("    Loading",cmetric,"...")
-        ds_m = _load_MME_by_init_end(E=E, runType=runType, variable=variable, metric=cmetric, init_range=init_range)
+        ds_m = _load_MME_by_init_end(E=E, runType=runType, variable=variable, metric=cmetric, 
+                                     init_range=init_range, leave_out=leave_out)
         
         # Somehow different metrics have lat long differeces order 10-6, so only use values from first metric to allow them to be merged
         # TODO: WHY?!?!??!?!?!

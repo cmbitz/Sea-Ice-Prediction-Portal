@@ -56,10 +56,16 @@ import dask
 # ESIO Imports
 from esio import EsioData as ed
 from esio import import_data
-from esio import ice_plot
+#from esio import ice_plot
 
 
 # In[3]:
+
+
+import sys
+
+
+# In[4]:
 
 
 # from dask.distributed import Client
@@ -67,7 +73,7 @@ from esio import ice_plot
 # client
 
 
-# In[4]:
+# In[5]:
 
 
 # General plotting settings
@@ -75,20 +81,34 @@ sns.set_style('whitegrid')
 sns.set_context("talk", font_scale=1.5, rc={"lines.linewidth": 2.5})
 
 
-# In[5]:
+# In[ ]:
 
 
 E = ed.EsioData.load()
-# Directories (exclode bom, ecc, hcmr, isaccnr, jma  since they do not predict sea ice)
-all_models = ['ecmwfsipn','ukmetofficesipn','ncep', 'ukmo', 
-              'kma', 'cma', 'ecmwf','metreofr'] 
-# all_models = [ 'ukmetofficesipn']
 updateall = False
 cvar = 'sic'
 stero_grid_file = E.obs['NSIDC_0051']['grid']
 
 
-# In[6]:
+# In[ ]:
+
+
+# Check user defined configuraiton file
+if len(sys.argv) < 2:
+    all_models = ['ecmwfsipn','ukmetofficesipn','meteofrsipn','ncep', 'ukmo', 
+                  'kma', 'cma', 'ecmwf','metreofr'] 
+    # all_models = ['ecmwfsipn']
+    # all_models = [ 'ukmetofficesipn']
+    all_models = ['meteofrsipn']
+else:
+    model_class = sys.argv[1]
+    if model_class=='C3S':
+        all_models = ['ecmwfsipn','ukmetofficesipn','meteofrsipn']
+    else:
+        all_models = ['ncep', 'ukmo','kma', 'cma', 'ecmwf','metreofr'] 
+
+
+# In[14]:
 
 
 obs_grid = import_data.load_grid_info(stero_grid_file, model='NSIDC')
@@ -97,14 +117,20 @@ obs_grid = import_data.load_grid_info(stero_grid_file, model='NSIDC')
 obs_grid['lat_b'] = obs_grid.lat_b.where(obs_grid.lat_b < 90, other = 90)
 
 
-# In[7]:
+# In[15]:
 
 
 # Regridding Options
 method='nearest_s2d' # ['bilinear', 'conservative', 'nearest_s2d', 'nearest_d2s', 'patch']
 
 
-# In[8]:
+# In[16]:
+
+
+E.model.keys()
+
+
+# In[17]:
 
 
 # Store dictionary to convert each model variable names to sipn syntax
@@ -125,20 +151,13 @@ for model in all_models:
 # C3S models
 var_dic['ukmetofficesipn'] = {'.*CI_GDS0_SFC':'sic'}
 var_dic['ecmwfsipn'] = {'.*CI_GDS0_SFC':'sic'}
+var_dic['meteofrsipn'] = {'.*CI_GDS0_SFC':'sic'}
 
-# list of models that have month init times
-monthly_init_model = ['ecmwfsipn', 'ukmetofficesipn', 'metreofr']
 
 weird_reforecast_model = ['ecmwf','ukmo','metreofr']
 
-# In[9]:
 
-
-## TODO
-# - Get lat lon bounds 
-
-
-# In[10]:
+# In[18]:
 
 
 def test_plot():
@@ -181,12 +200,20 @@ def test_plot():
     ax1.set_title('Target Grid')
 
 
-# In[ ]:
+# In[20]:
 
 
 # For both forecast and reforecast
+#for runType in ['forecast','reforecast']: 
 for runType in ['forecast']: 
     print('Working on...',runType)
+    
+    if runType=='reforecast':
+        monthly_init_model = ['ecmwfsipn', 'ukmetofficesipn', 'meteofrsipn']
+    else:
+        monthly_init_model = ['ecmwfsipn', 'ukmetofficesipn', 'meteofrsipn','metreofr']
+
+        
     # For each model
     for model in all_models:
         print('Regridding ', model, '...')
@@ -194,7 +221,7 @@ for runType in ['forecast']:
         data_dir = E.model[model][runType]['native']
         data_out = E.model[model][runType]['sipn_nc']
         model_grid_file = E.model[model]['grid']
-
+        print(data_dir)
         all_files = glob.glob(os.path.join(data_dir, '*.grib'))
         print("Found ",len(all_files)," files.")
         if updateall:
@@ -213,8 +240,6 @@ for runType in ['forecast']:
 
         weights_flag = False # Flag to set up weights have been created
 
-
-
         # Load land/sea mask file
         if model_grid_file.split('/')[-1]!='MISSING':
             ds_mask = xr.open_mfdataset(model_grid_file, autoclose=True)
@@ -228,35 +253,44 @@ for runType in ['forecast']:
             f_out = os.path.join(data_out, os.path.basename(cf).split('.')[0]+'_Stereo.nc') # netcdf file out 
             if not updateall:
                 if (os.path.isfile(f_out)) & (cf not in all_files[-2:]):
-                    print("Skipping ", os.path.basename(cf), " already imported.")
+                    #print("Skipping ", os.path.basename(cf), " already imported.")
                     continue # Skip, file already imported
 
             ds = xr.open_dataset(cf, engine='pynio')
-
-            # Some grib files do not have init_time dim because its assumed for the month
+            #ds = xr.open_dataset(cf, engine='cfgrib')
+            print(f_out)
+            print(ds)
+            print(cf.split('.')[0].split('_')[1])
+            # Some grib files do not have a init_time dim, because its assumed for the month
             if model in monthly_init_model:
                 c_coords = list(ds.coords.dims.keys())
                 tar_coords = list(filter(re.compile('.*initial_time').match, c_coords))
                 if len(tar_coords)==0: # Check if we have no initial_time* coordinate
                     print('Adding init_time as decoder failed to get it.....')
-                    ds.coords['initial_time1_hours'] = datetime.datetime(int(cf.split('.')[0].split('_')[1]), 
+                    if (model=='metreofr') & (runType=='reforecast'):
+                        s.coords['initial_time1_hours'] = datetime.datetime(int(cf.split('.')[0].split('_')[1]), 
+                                                                  int(cf.split('.')[0].split('_')[2]), 1)
+                    else:
+                        ds.coords['initial_time1_hours'] = datetime.datetime(int(cf.split('.')[0].split('_')[1]), 
                                                                   int(cf.split('.')[0].split('_')[2]), 1)
                     ds = ds.expand_dims('initial_time1_hours')
 
+                    
             # Some grib reforecast files do not have init_time dim because they are weird
             if (model in weird_reforecast_model) & (runType=='reforecast'):
-                itime = cf.split('.')[0].split('_')[1]
-                #print('itime is ',np.datetime64(itime))
-                year = int(itime.split('-')[0])
-                month = int(itime.split('-')[1])
-                day = int(itime.split('-')[2])
-                #print(year, month, day)
+                cyear = cf.split('.')[0].split('_')[1]
+                cmon = cf.split('.')[0].split('_')[2]
+                cday = cf.split('.')[0].split('_')[3]
+                print('itime is ',cyear,cmon,cday)
+                year = int(cyear)
+                month = int(cmon)
+                day = int(cday)
                 itimefancy = datetime.datetime(year,month,day)
                 #print(itimefancy)
                 ds.coords['initial_time0_hours'] = itimefancy
                 ds = ds.expand_dims('initial_time0_hours')
-                #print(ds)
-
+                print(ds.coords)
+                
             # Test we have initial_time0_hours or initial_time1_hours
             if ('initial_time0_hours' not in ds.coords) & ('initial_time1_hours' not in ds.coords):
                 print('initial_time... not found in file: ',cf,' Skipping it, need to FIX!!!!!!!!')
@@ -288,6 +322,8 @@ for runType in ['forecast']:
             # Check only data from one month (download bug)
             cm = pd.to_datetime(ds.init_time.values).month
             if model not in np.append(monthly_init_model,weird_reforecast_model):
+                print(cm)
+                print(np.diff(cm))
                 if np.diff(cm).max() > 0:
                     fm = int(cf.split('.')[0].split('_')[2]) # Target month in file
                     print("Found dates outside month, removing...")
@@ -295,6 +331,8 @@ for runType in ['forecast']:
                                            dims=ds.init_time.dims, coords=ds.init_time.coords), drop=True)
 
             # Calculate regridding matrix
+            print('just about to regrid')
+            print(ds)
             regridder = xe.Regridder(ds, obs_grid, method, periodic=True, reuse_weights=weights_flag)
             weights_flag = True # Set true for following loops
 
@@ -309,6 +347,7 @@ for runType in ['forecast']:
             # Expand dims
             var_out = import_data.expand_to_sipn_dims(var_out)
 
+            print(var_out)
             #test_plot()
             #xr.exit()
 
@@ -395,11 +434,5 @@ for runType in ['forecast']:
 #                                      transform=ccrs.PlateCarree(),
 #                                      cmap=cmap_sic)
 # ax1.set_title('mask we use')
-
-
-# In[ ]:
-
-
-
 
 

@@ -28,7 +28,7 @@ Also compute regional extents
 
 
 import matplotlib
-#import matplotlib.pyplot as plt, mpld3
+import matplotlib.pyplot as plt, mpld3
 
 
 import numpy as np
@@ -56,7 +56,7 @@ import dask
 # c
 
 
-# In[3]:
+# In[2]:
 
 
 cd = datetime.datetime.now()
@@ -86,22 +86,22 @@ product_list = ['NSIDC_0081', 'NSIDC_0079'] # , 'NSIDC_0051']
 for c_product in product_list:
     print('Aggregating ', c_product, '...')
 
+    out_dir = os.path.join(data_dir, c_product, 'sipn_nc_yearly')
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     for cyear in np.arange(1979,cy+1,1):
         #print(cyear)
         
         cyear_str = str(cyear)
-        
-        out_dir = os.path.join(data_dir, c_product, 'sipn_nc_yearly')
-        if not os.path.exists(out_dir):
-                os.makedirs(out_dir)
-                
         nc_out = os.path.join(out_dir, cyear_str+'.nc')
         # Don't update file if exits, unless current year or in first 5 days of new year
         if ((os.path.isfile(nc_out)) & (cyear<cy-1)):
             print('Year ',cyear,' is done')
             continue
         if ((os.path.isfile(nc_out)) & ((cyear==cy-1) & (not(firstfive)))):
-            print('Not first few days of year so do not redo',cyear)
+            print('Year ',cyear,' is done')
+            print('And not first few days of ',cyear+1,' so do not redo ',cyear)
             continue
 
         # Load in Obs
@@ -109,10 +109,25 @@ for c_product in product_list:
         if len(c_files)==0:
             #print("No files found for current year")
             continue
+            
         ds_year = xr.open_mfdataset(c_files, 
                                       concat_dim='time', parallel=True)
 
-        print('writing netcdf file')
+        # File nc_out is occasional size zero, not sure why
+        # but it was giving a permission error when trying to overwrite the file
+        # since python won't overwrite a file of size zero
+        # so remove it when the file is zero, could remove it no matter what
+        # but want to see when it happens
+        try:
+            nsz = os.path.getsize(nc_out)
+            print('nc_weeks ', nc_out, ' file size is ',nsz)
+            if nsz==0: 
+                print('removing empty file ',nc_out)
+                os.remove(nc_out)
+        except os.error as e:
+            print('os.error is ',e) # not a problem if file doesn't exist rewritten below anyway
+
+        print('writing netcdf file ',nc_out)
         ds_year.to_netcdf(nc_out)
         print(cyear)
       
@@ -123,7 +138,7 @@ for c_product in product_list:
 ds_year = None
 
 
-# In[ ]:
+# In[5]:
 
 
 # resample in weeks but always make weeks relative to Jan 1 of year
@@ -159,8 +174,23 @@ for c_product in product_list:
             print('Year ',cyear,' is done')
             continue
         if ((os.path.isfile(nc_weeks)) & ((cyear==cy-1) & (not(firstfive)))):
-            print('Not first few days of year so do not redo',cyear)
+            print('Year ',cyear,' is done')
+            print('And not first few days of ',cyear+1,' so do not redo ',cyear)
             continue
+
+        # File nc_weeks is occasional size zero, not sure why
+        # but it was giving a permission error when trying to overwrite the file
+        # since python won't overwrite a file of size zero
+        # so remove it when the file is zero, could remove it no matter what
+        # but want to see when it happens
+        try:
+            nsz = os.path.getsize(nc_weeks)
+            print('nc_weeks ', nc_weeks, ' file size is ',nsz)
+            if nsz==0: 
+                print('removing empty file ',nc_weeks)
+                os.remove(nc_weeks)
+        except os.error as e:
+            print('os.error is ',e) # not a problem if file doesn't exist rewritten below anyway
 
         ds_daily = xr.open_mfdataset(nc_daily,data_vars=['sic','extent','area','week'],parallel=True)
         ds_daily = ds_daily.drop('hole_mask')
@@ -197,7 +227,7 @@ ds_dail = None
 
 
 
-# In[5]:
+# In[7]:
 
 
 # Compute regional means starting in 1989
@@ -216,10 +246,6 @@ for c_product in product_list:
     data_dir_agg = os.path.join(E.obs_dir, c_product, 'sipn_nc_yearly_agg') # output weekly in year lumps
 
     for cyear in np.arange(1989,cy+1,1):
-#    for cyear in [2005]:
-
-        #print(cyear)
-        
         cyear_str = str(cyear)
         
         nc_fullfield = os.path.join(data_dir, cyear_str+'.nc')
@@ -232,7 +258,8 @@ for c_product in product_list:
             print('Year ',cyear,' is done')
             continue
         if ((os.path.isfile(nc_agg)) & ((cyear==cy-1) & (not(firstfive)))):
-            print('Not first few days of year so do not redo',cyear)
+            print('Year ',cyear,' is done')
+            print('And not first few days of ',cyear+1,' so do not redo ',cyear)
             continue
 
         ds_field = xr.open_mfdataset(nc_fullfield,data_vars=['sic','extent','area','week'],parallel=True)
@@ -244,11 +271,6 @@ for c_product in product_list:
         da_panE = ds_field.extent  # verified is the same
         da_panE['nregions'] = 99
         da_panE['region_names'] = 'panArctic'
-
-#        f = plt.figure(figsize=(15,10))
-#        ax1 = plt.subplot(1, 1, 1) # Observations
-#        da_panE.plot(ax=ax1, label=str(cyear)+' Observed', color='m', linewidth=8)
-#        diehere
 
         # Calc Regional extents
         da_RegE = metrics.agg_by_domain(da_grid=ds_field.sic, ds_region=ds_region)
@@ -278,18 +300,33 @@ for c_product in product_list:
 ds_field = None
 
 
-# In[6]:
+# In[41]:
 
 
-# gather up the regionally aggregated obs for processing, ds_all is smoothed with a 10 day running mean
-# crud meant it to be 30
+
+# In[10]:
+
+
+# gather up the regionally aggregated obs for computing extrapolation by DOY
+# and computing AR1 coeff. Since doing daily, decided to 
+# first smooth with a 10 day running mean, finally use a lowess fit to compute params
+# for extrapolation
+# note that the smooth is not for a given day across years, but across days in a row
+
 ds_79 = None
 ds_81 = None
 
 start_year = 1990
 pred_year = cy + 1
+
+# For a given day we only use data from past years
+# hence to predict the climotrendextrap and damped persistence for
+# Jan 20, 2020, we'd use all Jan 20 from 1990 to 2019
+# Hence as each new day's data become available, it allows us to predict 
+# one year in the future, so the pred_year is one year out
 #pred_year = 2018   # done already
 #pred_year = 2019   # done already
+#pred_year = 2020   # done already
 
 c_product = 'NSIDC_0081'
 data_dir_agg = os.path.join(E.obs_dir, c_product, 'sipn_nc_yearly_agg') # output weekly in year lumps
@@ -317,51 +354,71 @@ ds_all.coords['year'] = xr.DataArray(year_all, dims='time', coords={'time':ds_al
 # add doy to observational dataset
 DOY = [x.timetuple().tm_yday for x in pd.to_datetime(ds_all.time.values)]
 ds_all.coords['doy'] = xr.DataArray(DOY, dims='time', coords={'time':ds_all.time})
-ds_rough = ds_all
+ds_rough = ds_all  # save the unsmoothed data in case we want to compare
 ds_all = ds_all.rolling(time=10, min_periods=1, center=True).mean()
 print(ds_all)
 
 
-# In[ ]:
-
-
-#f = plt.figure()  
-#ds_rough.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='k')
-#ds_all.sel(nregions=99,time=slice('1990','1991')).Extent.plot(color='r')
-
-
-# In[ ]:
+# In[11]:
 
 
 TestPlot = False
 if TestPlot:
-    # Select a day of the year to test
-    ytrain = ds_all.Extent.sel(nregions=99)
-    rough = ds_rough.Extent.sel(nregions=99)
-
-    ytrain = ytrain.where(ds_all['doy']==104, drop=True).values
-    rough = rough.where(ds_all['doy']==104, drop=True).values
-
-    cyears=np.arange(1990,pred_year,1)
-
-    pfit = metrics._lowessfit(cyears, ytrain)  # new method local for mucking
-#    pfit = _fitparams(cyears, ytrain)  # new method local for mucking
-    fitfun = np.poly1d(pfit)
-    newpred = fitfun(pred_year)
+    pyear=2020
+    pday = 260
+    ytrain = ds_all.Extent.sel(nregions=9).sel(time=slice('1990',str(pyear-1)))
+    rough = ds_rough.Extent.sel(nregions=9).sel(time=slice('1990',str(pyear-1)))
+    ytrain = ytrain.where(ds_all['doy']==pday, drop=True).values
+    rough = rough.where(ds_all['doy']==pday, drop=True).values
+    cyears=np.arange(1990,pyear,1)
     
-    # can I reconstruct it by hand (yes)
-    tmp=cyears**2*pfit[0]+cyears*pfit[1]+pfit[2]
+    basevalue=np.mean(ytrain[0:10])
+    yn=np.where(ytrain<basevalue*0.995, ytrain, np.nan)
     
-#    f = plt.figure()
+    if (np.count_nonzero(np.isnan(yn[-5:]))>1):  # >1 nan values in last 5 yrs 
+        print('Too many nans in last 5 yrs, skip fit and use mean ')
+        tmp=list(yn)
+        newpred = np.nanmean(ytrain[-5:])  # use ytrain not yn!
+    elif (np.count_nonzero(np.isnan(yn[0:14]))>10):  # >10 nan values in first 15 yrs 
+        print('Too many nans in first half, use first order fit on second half')
+        order = 1
+        pfit = testlowessfit(cyears[15:], ytrain[15:], order)  # new method local fit to data
+        print(pfit)
+        fitfun = np.poly1d(pfit)
+        newpred = fitfun(pyear)
+
+        # can I reconstruct it by hand (yes) it is equal to tmp = fitfun(cyears)
+        tmp=cyears*pfit[0]+pfit[1]
+    else:
+        order = 2
+        pfit = testlowessfit(cyears, ytrain, order)  # new method local fit to data
+        print(pfit)
+        fitfun = np.poly1d(pfit)
+        newpred = fitfun(pyear)
+
+        # can I reconstruct it by hand (yes) it is equal to tmp = fitfun(cyears)
+        tmp=cyears**2*pfit[0]+cyears*pfit[1]+pfit[2]
+
+    print('also restrict to 0 and basevalue')
+    newpred=np.where(newpred>0, newpred, 0)
+    newpred=np.where(newpred<basevalue, newpred, basevalue)
+
+    # note that the smoothing is not for a given day across years, but across days in a row
+    # so black dots are not a smoothed version of green but ought to be smoother 
+    # than the green
+
+#    f = plt.figure() # only use this temporarily, must remove from py 
 #    plt.plot(cyears,ytrain,marker='o',markersize=10,color='k')
-#    plt.plot(cyears,rough,marker='o',markersize=10,color='g')
-#    plt.plot(pred_year,newpred,marker='o',markersize=10,color='b')
+#    plt.plot(cyears,rough,marker='o',markersize=8,color='g')
+#    plt.plot(pyear,newpred,marker='*',markersize=10,color='b')
 #    plt.plot(cyears,tmp,marker='o',markersize=10,color='c')
 
-#    print('cyan dots are quadratic fit to lowess smoothed data')
+    print('green dots are data without 10 day smoothing, black is with')
+    print('cyan dots are quadratic fit to lowess smoothed data, blue star is extrapolation')
+    print(newpred)
 
 
-# In[ ]:
+# In[12]:
 
 
 # compute the fit parameters for the regionally aggregated obs
@@ -370,7 +427,7 @@ if TestPlot:
 # takes a few minutes done for 2018, 2019
 c_product = 'NSIDC_0079'  # save here so all fit params are together
 file_out = os.path.join(E.obs_dir, c_product, 'fitparams','fitparams_1990-'+str(pred_year-1)+'.nc') # read in daily in year lumps
-
+print(file_out)
 print('ds_all ',ds_all)
 da_out = None
 
@@ -378,27 +435,37 @@ da_out = None
 doypred = ds_all.where(ds_all['year']==pred_year-1,drop=True).doy.values
 
 for cdoy in doypred:
-    if (cdoy<366):  # do not fit if cdoy is 366 assuming data are lacking
-        # Select cdoy 
-        thisday=ds_all.Extent.where(ds_all['doy']==cdoy, drop=True).swap_dims({'time':'year'})
-    #    print('thisday ',thisday)
-        da = metrics.LowessQuadFit(thisday.chunk({'year': -1}), 'year') # Have to rechunk year into one big one    print(tmp)
-        da.name = 'fitparams'
-        da.load()  # load before saving forces calculation now
 
-        # Move back to actual (valid_time) space
-        da = da.expand_dims('time')
-        da.coords['time'] = xr.DataArray([datetime.datetime(pred_year,1,1) + datetime.timedelta(days=int(x-1)) for x in [cdoy]], dims='time')
-    #    print(da)
-        if (cdoy==1):
-            da_out=da
-        else:
-            # Merge
-            da_out = xr.concat([da_out, da], dim='time')
+    if (cdoy==366):  # do not fit if cdoy is 366 assuming data are lacking
+        continue
+        
+    # Select cdoy 
+    thisday=ds_all.Extent.where(ds_all['doy']==cdoy, drop=True).swap_dims({'time':'year'})
+    #print('thisday ',thisday.chunk({'year': -1}))
+    da = metrics.ImprovedLowessFit(thisday.chunk({'year': -1}), 'year',2) # Have to rechunk so all years in one
+    maxvalue = thisday.isel(year=slice(0,9)).mean(dim='year') # compute max of 1990-1999 to save with the fitparams
 
-# if on day 365 or 366 be sure to have a day 366 to deal with potention for pred_year needing a leap day
-if (cdoy>=365):
-    # repreat day 365 for leap days assuming inssufficient years to do better
+    da.load()  # load before saving forces calculation now
+    da=da.to_dataset(dim='fitparams')
+    da['maxvalue']=maxvalue
+
+    # Move back to actual (valid_time) space
+    da = da.expand_dims('time')
+    da.coords['time'] = xr.DataArray([datetime.datetime(pred_year,1,1) + datetime.timedelta(days=int(x-1)) for x in [cdoy]], dims='time')
+    #print(da)
+    recons=pred_year**2*da.fitparams.isel(pdim=0)  +  pred_year*da.fitparams.isel(pdim=1) +  da.fitparams.isel(pdim=2)
+    #print(recons.values)
+
+    if (cdoy==1):
+        da_out=da
+    else:
+        # Merge
+        da_out = xr.concat([da_out, da], dim='time')
+
+#        print(da_out)
+
+if max(doypred>=365):
+    # every year repreat day 365 for possibility of needing leap days, repeat is good enough
     da.coords['time'] = xr.DataArray([datetime.datetime(pred_year,1,1) + datetime.timedelta(days=int(x-1)) for x in [366]], dims='time')
     da_out = xr.concat([da_out, da], dim='time')
 
@@ -407,13 +474,13 @@ da_out.to_netcdf(file_out)
 print("Saved",file_out)
 
 
-# In[37]:
+# In[23]:
 
 
 # Compute and Write the climo Trend for each day of the prediction year
 # must update each day for current pred_year
-
 # pred_year = 2018 already did 2018, 2019 
+#pred_year=2020
 
 c_product = 'NSIDC_0079'  # fit params are here which is kind of dumb
 file_in = os.path.join(E.obs_dir, c_product, 'fitparams','fitparams_1990-'+str(pred_year-1)+'.nc') # read in daily in year lumps
@@ -421,18 +488,47 @@ file_in = os.path.join(E.obs_dir, c_product, 'fitparams','fitparams_1990-'+str(p
 ds = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
 
 recons=pred_year**2*ds.fitparams.isel(pdim=0)  +  pred_year*ds.fitparams.isel(pdim=1) +  ds.fitparams.isel(pdim=2)
-recons.name = 'ClimoTrendExtent'
 recons = recons.drop('pdim')
+
+recons = recons.where(recons>0, other=0)
+recons = recons.where(recons<ds.maxvalue, other=ds.maxvalue)
 
 leapyear = (pred_year//4 )*1.0 == pred_year/4
 if not leapyear: # & len(recons.time.values)==366:
     recons = recons.isel(time=slice(0,365))
     print('dropping extra day for non leapyear')
+recons.name = 'ClimoTrendExtent'
 
+print(recons)
+    
 file_out = os.path.join(E.obs_dir, c_product, 'sipn_nc_yearly_agg_climatology',str(pred_year)+'_RegionalExtents.nc')
 
 recons.to_netcdf(file_out)
 print("Saved",file_out)
+
+
+# In[ ]:
+
+
+# SEE HOW WE DID WITH THE CLIMOTRENDEXTRAP, this file is output later in this script so this 
+# block should be cut later
+
+# the extrapolated trend
+files_in=E.obs['NSIDC_0079']['sipn_nc']+'_yearly_agg_climatology/*.nc'
+print(files_in)
+ds_climo = xr.open_mfdataset(E.obs['NSIDC_0079']['sipn_nc']+'_yearly_agg_climatology/*.nc', concat_dim='time')
+print(ds_climo)
+ds_climo = ds_climo.ClimoTrendExtent
+
+
+# In[42]:
+
+
+# still not great
+#f = plt.figure() # only use this temporarily, must remove from py 
+#plt.plot(ds_climo.sel(nregions=9,time=str(2018)),marker='o',markersize=6,color='r')
+#plt.xlim(0,270)
+#plt.ylim(0.,1)
 
 
 # In[ ]:
@@ -455,11 +551,64 @@ if alternativeway:
     print(mean_ext.values)
 
 
+# In[60]:
+
+
+# new way with Smoothing, only need to do once
+update = False
+
+if update:
+    start_year=1990
+    end_year = 2017  
+
+    file_in = os.path.join(E.obs_dir, c_product, 'fitparams','fitparams_1990-'+str(end_year)+'.nc') # read in daily in year lumps
+    ds = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
+
+    DOY = [x.timetuple().tm_yday for x in pd.to_datetime(ds.time.values)]
+    ds.coords['doy'] = xr.DataArray(DOY, dims='time', coords={'time':ds.time})
+    ds['doy'][-1] = 366
+    ds = ds.swap_dims({'time':'doy'})
+    ds = ds.drop('time')
+    print(ds)
+    
+    trendfit = None
+    for cyear in np.arange(start_year, end_year+2, 1):
+        # current year 
+        ds_specific = ds_all.where(ds_all.year==cyear, drop=True) #.swap_dims({'time':'year'})
+        cdoys = ds_specific.doy.values
+        recons=cyear**2*ds.fitparams.sel(pdim=0,doy=cdoys) + cyear*ds.fitparams.sel(pdim=1,doy=cdoys) + ds.fitparams.sel(pdim=2,doy=cdoys)
+        recons = recons.where(recons>0, other=0)
+        recons = recons.where(recons<ds.maxvalue.sel(doy=cdoys), other=ds.maxvalue.sel(doy=cdoys))
+
+        recons.coords['time'] = xr.DataArray(ds_specific['time'].values, dims='doy', coords={'doy':recons.doy})
+        recons = recons.swap_dims({'doy':'time'})
+        recons = recons.drop('pdim')
+        recons = recons.drop('doy')
+
+        if (cyear==start_year):
+            trendfit=recons
+        else:
+            trendfit = xr.concat([trendfit, recons], dim='time')  # Merge
+    trendfit.name='trendfit'
+
+    trendfit = trendfit.rolling(time=10, min_periods=1, center=True).mean()
+    trendfit = trendfit.sel(time=slice(str(start_year),str(end_year))) # cut off last year 
+    
+    ds_79=ds_all.sel(time=slice(str(start_year),str(end_year)))   # this is already smoothed
+    print(ds_79)
+    trendfit = trendfit-ds_79.Extent
+    trendfit.name='Extent'
+    print(trendfit)
+    
+    file_out = os.path.join(E.obs_dir, c_product,'sipn_nc_yearly_agg_anom', 'RegionalExtentsAnomalies_1990-'+str(end_year)+'.nc')
+    trendfit.to_netcdf(file_out)
+    print("Saved",file_out)
+
+
 # In[ ]:
 
 
-# Compute anomalies of the regional anomalies for purpose of computing alpha for damped persistence
-# not important to redo with more data since 28 years should give a good estimate for alpha
+# OLDWAY W/O Smoothing
 
 update = False
 
@@ -507,7 +656,7 @@ if update:
         print("Saved",file_out)
 
 
-# In[28]:
+# In[63]:
 
 
 # function to add a new dimension to dataarray with size of the list fill_value
@@ -523,7 +672,7 @@ def expand_dimensions(data, fill_value=np.nan, **new_coords):
 
 
 
-# In[55]:
+# In[ ]:
 
 
 update = False  # takes 5 min or so
@@ -541,11 +690,14 @@ end_year = 2017
 Y_End = end_year
 
 if update:
-
     cyear = 1990 # all this is just to make an alpha dataarray to populate below
-    file_in = os.path.join(E.obs_dir, c_product,'sipn_nc_yearly_agg_anom', 'RegionalExtentsAnomalies_'+str(cyear)+'.nc')
-    ds = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
-    alpha = expand_dimensions(0.*ds.Extent,fore_time=np.arange(1,366))
+    #file_in = os.path.join(E.obs_dir, c_product,'sipn_nc_yearly_agg_anom', 'RegionalExtentsAnomalies_*.nc')
+    #allanoms = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
+    file_in = os.path.join(E.obs_dir, c_product,'sipn_nc_yearly_agg_anom', 'RegionalExtentsAnomalies_1990-'+str(end_year)+'.nc')
+    allanoms = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
+    allanoms = allanoms.Extent
+    ds = allanoms.sel(time='1990')
+    alpha = expand_dimensions(0.*ds,fore_time=np.arange(1,366))
     alpha.name = 'alpha'
     alpha = alpha.drop('year')
     alpha = alpha.drop('doy')
@@ -557,10 +709,6 @@ if update:
     ds = None
 
     alpha.load()
-
-    file_in = os.path.join(E.obs_dir, c_product,'sipn_nc_yearly_agg_anom', 'RegionalExtentsAnomalies_*.nc')
-    allanoms = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
-    allanoms = allanoms.Extent
     allanoms = allanoms.swap_dims({'time':'year'})
     allanoms = allanoms.sel(year=slice(Y_Start,Y_End))
     allanoms = allanoms.where(allanoms.doy<=365, drop=True)  # get rid of leap days
@@ -616,5 +764,30 @@ if update:
     file_out = os.path.join(E.obs_dir, c_product,'alpha_agg', str(Y_Start)+'_'+str(Y_End)+'_Alpha.nc')
     alpha.to_netcdf(file_out)
     print("Saved",file_out)
+
+
+# In[ ]:
+
+
+Testpwlf = False
+if Testpwlf:  # this sounded good but was bad
+    import pwlf
+
+    x=np.arange(1,31)
+
+    model = pwlf.PiecewiseLinFit(x, ytrain)
+
+    breakpoints = model.fit(2,x_c=x[0:15],
+                            y_c=np.ones(16)*max(ytrain[0:10]))  # or maybe    [0.0, 15.0, 32]
+    #breakpoints = model.fit(2)
+    model.fit_with_breaks(breakpoints)
+
+
+    xd = np.linspace(1990, 2021, 100)
+    xd = np.linspace(0, 32, 35)
+    yd = model.predict(xd)  # call model on new data
+
+    #plt.plot(x, ytrain, 'x', label = 'data')
+    #plt.plot(xd, yd, label = 'Fit')
 
 

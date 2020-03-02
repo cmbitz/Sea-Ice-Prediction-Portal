@@ -23,9 +23,9 @@ GNU General Public License v3.0
 Plot observed and modeled sea ice variables of interest.
 
 '''
-#get_ipython().magic('matplotlib inline')
-#get_ipython().magic('load_ext autoreload')
-#get_ipython().magic('autoreload')
+
+
+
 import matplotlib
 import itertools
 matplotlib.use('Agg')
@@ -120,7 +120,6 @@ da_81reg = metrics.agg_by_domain(da_grid=da_81, ds_region=ds_region)
 ctime = np.datetime64(datetime.datetime.now())
 lag_time_30days = ctime - np.timedelta64(30, 'D')
 lag_time_90days = ctime - np.timedelta64(90, 'D')
-last_sept = metrics.get_season_start_date(ctime)
 
 # Select recent period
 da_81_30 = da_81.where(da_81.time >= lag_time_30days, drop=True)
@@ -189,10 +188,19 @@ if update:
 # In[11]:
 
 
-last_sept
+# start regional maps on 9-1 of previous year, until Oct and then make it this year
+
+X = ctime.astype(object)
+if X.month<=9:
+    yyyy = X.year-1
+else:
+    yyyy = X.year
+start_date = np.datetime64(str(yyyy)+'-09-01')
+
+start_date
 
 
-# In[24]:
+# In[12]:
 
 
 # Set up plotting info
@@ -209,7 +217,7 @@ for cd in da_81reg.nregions:
     # Don't plot central arctic (boring)
     if da_81reg.region_names.sel(nregions=cd) == 'Central Arctic':
         continue
-    cdata = da_81reg.where(da_81reg.time >= last_sept, 
+    cdata = da_81reg.where(da_81reg.time >= start_date, 
                    drop=True).sel(nregions=cd)
     cdata.plot(label=da_81reg.region_names.sel(nregions=cd).values,
                                                    color=next(cmap_reg_cycle),
@@ -224,7 +232,7 @@ f.savefig(f_name+'.png',bbox_inches='tight',dpi=200)
 #mpld3.save_json(f, f_name+'.json')
 
 
-# In[33]:
+# In[13]:
 
 
 # Set up plotting info
@@ -236,7 +244,7 @@ linecycler = itertools.cycle(["-","--","-.",":","--"])
 da_climo = xr.open_mfdataset(E.obs['NSIDC_0079']['sipn_nc']+'_yearly_agg_climatology/*.nc', concat_dim='time')
 da_climo = da_climo.ClimoTrendExtent
 
-cdata = da_81reg.where(da_81reg.time >= last_sept, drop=True) - da_climo.where(da_climo.time >= last_sept, drop=True) 
+cdata = da_81reg.where(da_81reg.time >= start_date, drop=True) - da_climo.where(da_climo.time >= start_date, drop=True) 
 
 f = plt.figure(figsize=(10,5))
 ax1 = plt.subplot(1, 1, 1)
@@ -257,21 +265,12 @@ f_name = os.path.join(fig_dir,'panArcticSIC_Forecast_RegionalAnomalies_CurrentSe
 f.savefig(f_name+'.png',bbox_inches='tight',dpi=200)
 
 
-# In[27]:
-
-
-print(da_climo)
-print(ds_ext)
-
-
-# In[34]:
+# In[14]:
 
 
 ## Plot Extents
 
-
-
-# Plot pan-Arctic sea ice extent
+# last 30 days
 f = plt.figure(figsize=(10,5))
 ax1 = plt.subplot(1, 1, 1) # Observations
 da_81_30_avg.plot(ax=ax1, label='NSIDC NRT\n (Maslanik et al. 1999)')
@@ -288,7 +287,7 @@ mpld3.save_json(f, f_name+'.json')
 mpld3.save_html(f, f_name+'.html')
 
 
-## Plot pan-Arctic sea ice extent
+# last 3 months
 f = plt.figure(figsize=(10,5))
 ax1 = plt.subplot(1, 1, 1) # Observations
 da_81_3m_avg.plot(ax=ax1, label='NSIDC NRT\n (Maslanik et al. 1999)')
@@ -301,24 +300,23 @@ plt.legend()
 f.savefig(os.path.join(fig_dir,'panArcticSIC_Forecast_3months.png'),bbox_inches='tight',dpi=200)
 
 
-# In[35]:
+# In[15]:
 
 
 cbar_kwargs={'label':'Sea Ice Concentration (-)','size':12}
-print(cbar_kwargs)  # size was rejected, don't know why
 
 # read in the climo trend for this doy and year
 cdoy = pd.to_datetime(ctime).timetuple().tm_yday
 cyear = pd.to_datetime(ctime).timetuple().tm_year
 
 #files are this format 2019_262_1990_2018_SIC.nc
-climo_file = os.path.join(E.model_dir,'climatology','forecast','sipn_nc')+'/'+str(cyear)+'_'+str(cdoy)+'_1990_2018_SIC.nc'
+climo_file = os.path.join(E.model_dir,'climatology','forecast','sipn_nc')+'/'+str(cyear)+'_'+format(cdoy, '03')+'_1990_'+str(cyear-1)+'_SIC.nc'
 
 da_climo = xr.open_mfdataset(climo_file)
 da_climo = da_climo.sic.squeeze()
 
 
-# In[38]:
+# In[16]:
 
 
 # Plot Recent maps
@@ -337,9 +335,7 @@ cmap_diff_2.set_bad(color = 'lightgrey')
 (f, ax1) = ice_plot.polar_axis()
 f.set_size_inches(15, 8)
 #f.set_size_inches(10, 5)
-# Obs NSIDC 0051
 obs1 = da_81.sel(time=ctime, method='nearest')
-cdoy = pd.to_datetime(ctime).timetuple().tm_yday
 (obs1-da_climo).plot.pcolormesh(ax=ax1, x='lon', y='lat', 
                                      transform=ccrs.PlateCarree(),
                                      cmap=cmap_diff_2,
@@ -349,7 +345,77 @@ plt.tight_layout()
 f.savefig(os.path.join(fig_dir,'panArcticSIC_SIC_anomaly_fromClimoTrend.png'),bbox_inches='tight',dpi=200)
 
 
-# In[44]:
+# In[17]:
+
+
+updateAll = False # if update all make figures since start of sipn, otherwise just make last few weeks
+
+start_t = datetime.datetime(1950, 1, 1)  # Hardcoded start date (makes incremental weeks always the same)
+currentday = datetime.datetime.now()
+init_slice = np.arange(start_t, currentday, datetime.timedelta(days=7)).astype('datetime64[ns]')
+
+if updateAll:
+    init_start_date = np.datetime64('2018-01-01') # make all figs since start
+else:
+    init_start_date = init_slice[-1]-np.timedelta64(13, 'D') # make figs for last couple of weeks
+
+init_slice = init_slice[init_slice>=init_start_date] # Select only the inits after init_start_date
+print('Make figs for periods range of : ',init_slice[0], ' to ',init_slice[-1])
+
+fig_dir = os.path.join(E.fig_dir, 'obs', 'NSIDC_0081' , 'verification')
+
+for lastdate in init_slice:
+    firstdate=lastdate-np.timedelta64(6, 'D')
+    print(firstdate,lastdate)
+
+    tmp=da_81.sel(time=slice(firstdate,lastdate))
+    cdoystart = pd.to_datetime(firstdate).timetuple().tm_yday - 1
+    cdoylast = pd.to_datetime(lastdate).timetuple().tm_yday
+    if cdoystart<cdoylast:
+        tmpclimo=mean_1980_2010_sic.isel(time=slice(cdoystart,cdoylast))
+    else:
+        year = firstdate.astype('datetime64[Y]').astype(int) + 1970
+        print('The year is ',year)
+        if (year % 4 == 0 and year % 100 != 0) | (year % 400 ==0):
+            print(year, "is a Leap Year")
+            tmpclimo=mean_1980_2010_sic.isel( time=(mean_1980_2010_sic.time>cdoystart) |
+                                          (mean_1980_2010_sic.time<=cdoylast) )
+        else:
+            tmpclimo=mean_1980_2010_sic.isel( time=( (mean_1980_2010_sic.time>cdoystart) & (mean_1980_2010_sic.time<366)) |
+                                          (mean_1980_2010_sic.time<=cdoylast) )
+    print(tmpclimo)
+    if (len(tmp.time)>0): 
+        tmp=tmp.mean(dim='time')
+        tmpclimo=tmpclimo.mean(dim='time')
+        anom = tmp-tmpclimo
+        datestring=pd.to_datetime(lastdate).strftime('%Y-%m-%d')
+
+        (f, axes) = ice_plot.multi_polar_axis(ncols=2, nrows=1, Nplots=2)
+        f.set_size_inches(8, 4)
+        tmp.plot.pcolormesh(ax=axes[0], x='lon', y='lat', 
+                                             transform=ccrs.PlateCarree(),
+                                             cmap=cmap_sic, add_colorbar=False,
+                                             vmin=0, vmax=1)
+        axes[0].set_title('')
+        f.savefig(os.path.join(fig_dir,datestring[0:4],'panArcticSIC_weekly_mean_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
+        
+        (f, axes) = ice_plot.multi_polar_axis(ncols=2, nrows=1, Nplots=2)
+        f.set_size_inches(8, 4)
+        anom.plot.pcolormesh(ax=axes[0], x='lon', y='lat', 
+                                             transform=ccrs.PlateCarree(),
+                                             cmap=cmap_diff_2, add_colorbar=False,
+                                             vmin=-1, vmax=1)
+        axes[0].set_title('')
+        f.savefig(os.path.join(fig_dir,datestring[0:4],'panArcticSIC_weekly_anom_ending_'+datestring+'.png'),bbox_inches='tight',dpi=200)
+
+
+# In[ ]:
+
+
+
+
+
+# In[41]:
 
 
 # Plot Obs and model SIC for date
@@ -417,4 +483,5 @@ ax1.set_title('1 Week Change\nNSIDC NRT\n'+pd.to_datetime(obs2.time.values).strf
              pd.to_datetime(obs1.time.values).strftime('%Y-%m-%d'), fontsize=16)
 plt.tight_layout()
 f.savefig(os.path.join(fig_dir,'panArcticSIC_Forecast_Map_1Week_Change.png'),bbox_inches='tight',dpi=200)
+
 

@@ -176,7 +176,7 @@ E.model_color['fgoalssipn']='darkblue'
 
 
 # list of models that have month init times, do not bunch these by week
-monthly_init_model = ['gfdlsipn','ecmwfsipn', 'ukmetofficesipn', 'metreofr','awispin','nicosipn']
+monthly_init_model = ['gfdlsipn','ecmwfsipn', 'ukmetofficesipn','meteofrsipn', 'metreofr','awispin','nicosipn']
 
 
 # In[60]:

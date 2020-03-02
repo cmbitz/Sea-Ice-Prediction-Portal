@@ -10,7 +10,8 @@ pyconvert.sh plot_Extent_Model_Obs.ipynb
 pyconvert.sh plot_forecast_availability.ipynb
 pyconvert.sh plot_observations.ipynb
 pyconvert.sh Calc_adjusted_extents.ipynb
-pyconvert.sh plot_Regional_maps.ipynb
+pyconvert.sh plot_RegionalMaps_Fast_from_database.ipynb
+pyconvert.sh plot_PanArcticMaps_Fast_from_database.ipynb
 pyconvert.sh Regrid_NESM.ipynb
 pyconvert.sh Regrid_RASM.ipynb
 pyconvert.sh plot_Regional_Extent.ipynb

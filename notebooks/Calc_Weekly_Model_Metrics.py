@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[26]:
+# In[18]:
 
 
 '''
@@ -25,9 +25,9 @@ redo for last two weeks each time called, takes a long time
 no plots are made
 '''
 
-#%matplotlib inline  # there is no plotting in this routine despite the name
-#%load_ext autoreload
-#%autoreload
+
+
+
 import matplotlib
 import matplotlib.pyplot as plt
 from collections import OrderedDict
@@ -62,7 +62,7 @@ sns.set_style('whitegrid')
 sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 
 
-# In[27]:
+# In[19]:
 
 
 # discovered that ukmetofficesipn march was actually some other month so 
@@ -74,7 +74,7 @@ sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 # models are done again and so not update all 
 
 
-# In[28]:
+# In[20]:
 
 
 #client = Client()
@@ -82,7 +82,7 @@ sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 dask.config.set(scheduler='threads')  # overwrite default with threaded scheduler
 
 
-# In[30]:
+# In[21]:
 
 
 #def Update_PanArctic_Maps():
@@ -91,6 +91,8 @@ runType = 'forecast'
 variables = ['sic']
 metrics_all = {'sic':['anomaly','mean','SIP'], 'hi':['mean']}
 #metrics_all = {'sic':['SIP']}
+
+cvar = 'sic'
 
 # Define Init Periods here, spaced by 7 days (aprox a week)
 # Now
@@ -107,11 +109,11 @@ Ndays = 7 # time period to aggregate maps to (default is 7)
 
 init_start_date = np.datetime64('2018-01-01') # first date we have computed metrics
                    # only updates files if missing or if forced with updateAll=True
-init_start_date = np.datetime64('2019-01-01') # speeds up substantially b
+#init_start_date = np.datetime64('2019-01-01') # speeds up substantially b
 updateAll = False # if update all may wish to adjust init_start_date
 
-# recently updated since 2019-01-01 for damped anom and climo trend
-#init_start_date = np.datetime64('2019-01-01') # first date we have computed metrics
+# limit the range to check so goes a bit faster
+init_start_date = np.datetime64('2019-07-01') # first date we possibly compute metrics
 #updateAll = True
 
     
@@ -127,12 +129,12 @@ weeks = pd.to_timedelta(np.arange(0,52,1), unit='W')
 #months = pd.to_timedelta(np.arange(2,12,1), unit='M')
 #years = pd.to_timedelta(np.arange(1,2), unit='Y') - np.timedelta64(1, 'D') # need 364 not 365
 #slices = weeks.union(months).union(years).round('1d')
-da_slices = xr.DataArray(weeks, dims=('fore_time'))
-da_slices.fore_time.values.astype('timedelta64[D]')
-print(da_slices)
+fore_slice = xr.DataArray(weeks, dims=('fore_time'))
+fore_slice.fore_time.values.astype('timedelta64[D]')
+print(fore_slice)
 
 
-# In[31]:
+# In[13]:
 
 
 #############################################################
@@ -157,12 +159,15 @@ models_2_plot = list(E.model.keys())
 models_2_plot = [x for x in models_2_plot if x not in ['piomas','MME','MME_NEW','uclsipn','hcmr']] # remove some models
 models_2_plot = [x for x in models_2_plot if E.icePredicted[x]] # Only predictive models
 #models_2_plot = ['dampedAnomalyTrend']
-# models_2_plot = ['ukmetofficesipn']
+#models_2_plot = ['ukmo']
+#models_2_plot = ['ukmetofficesipn']
 #models_2_plot = ['usnavysipn', 'usnavyncep', 'rasmesrl', 'noaasipn', 'noaasipn_ext', 'usnavygofs', 'modcansipns_3', 'modcansipns_4', 'szapirosipn', 'awispin', 'nicosipn']
+#models_2_plot = ['fgoalssipn']
 print(models_2_plot)
+# climatology is done differently later in script
 
 
-# In[9]:
+# In[14]:
 
 
 # def is_in_time_range(x):
@@ -174,158 +179,404 @@ print(models_2_plot)
 # time_bds = [init_slice[0],init_slice[-1]]
 
 
-# In[32]:
+# In[15]:
 
 
-###########################################################
-#          Loop through each dynamical model              #
-###########################################################
+# will consider if we want to update all of these init times
+#init_start_date = np.datetime64('2019-07-22') # first date we have computed metrics
+#init_slice = init_slice[init_slice>=init_start_date] # Select only the inits after init_start_date
+
+print(init_slice )
+
+print(fore_slice)
+
+
+# In[22]:
+
+
+#updateAll = True
+updateAll = False
+
+#models_2_plot=['fgoalssipn']
+#models_2_plot=['yopp']
+#updateAll = True
+
+
+cvar = 'sic'
 
 # Plot all Models
 for cmod in models_2_plot:
-    print(cmod)
 
-    # Load in Model
-    # Find only files that have current year and month in filename (speeds up loading)
     all_files = os.path.join(E.model[cmod][runType]['sipn_nc'], '*.nc') 
+    print(all_files)
 
     # Check we have files 
     files = glob.glob(all_files)
     if not files:
         continue # Skip this model
 
-    # Get list of variablse we want to drop
-    drop_vars = [x for x in xr.open_dataset(sorted(files)[-1],autoclose=True).data_vars if x not in variables]
-    
-    # Load in model   
-    ds_model_ALL = xr.open_mfdataset(sorted(files), 
-                                 chunks={ 'fore_time': 1,'init_time': 1,'nj': 304, 'ni': 448},  
-                                 concat_dim='init_time', autoclose=True, 
-                                 parallel=True, drop_variables=drop_vars)
-                                 # preprocess=lambda x : is_in_time_range(x)) # 'fore_time': 1, ,
-    ds_model_ALL.rename({'nj':'x', 'ni':'y'}, inplace=True)
-    
-    # Sort by init_time
-    ds_model_ALL = ds_model_ALL.sortby('init_time')
+    # only want to open files in the init_slice, do not want to use dask though 
+    # for the idiotic cases 
         
-    # Get Valid time
-    ds_model_ALL = import_data.get_valid_time(ds_model_ALL)
-    print('init times are ',ds_model_ALL.init_time.values)
-    # For each variable
-    for cvar in variables:
+    for it in init_slice: 
+        it_start = it-np.timedelta64(Ndays,'D') + np.timedelta64(1,'D') # Start period for init period (it is end of period). Add 1 day because when
+        # we select using slice(start,stop) it is inclusive of end points. So here we are defining the start of the init AND the start of the valid time.
+        # So we need to add one day, so we don't double count.
+        print('\n it_start  ',it_start,"to",it)
 
-        # For each init time period
-        for it in init_slice: 
-            it_start = it-np.timedelta64(Ndays,'D') + np.timedelta64(1,'D') # Start period for init period (it is end of period). Add 1 day because when
-            # we select using slice(start,stop) it is inclusive of end points. So here we are defining the start of the init AND the start of the valid time.
-            # So we need to add one day, so we don't double count.
-            print('it_start  ',it_start,"to",it)
+        # not actually using this but may want it later
+        tmp = str(it_start.astype('datetime64[D]')).split('-')
+        year0=tmp[0]
+        month0=tmp[1]
+        day0=tmp[2]
+        tmp=str(it.astype('datetime64[D]')).split('-')
+        year1=tmp[0]
+        month1=tmp[1]
+        day1=tmp[2]
+        #print(year0,month0,day0, ' to ' ,year1,month1,day1)
 
-            # For each forecast time we haven't plotted yet
-            #ft_to_plot = ds_status.sel(init_time=it)
-            #ft_to_plot = ft_to_plot.where(ft_to_plot.isnull(), drop=True).fore_time
+        good_files = []
+        for cfile in files:
+        
+            ds=xr.open_dataset(cfile,autoclose=True).init_time
+            its = ds.values
 
-            for ft in da_slices.values: 
+            # Check if init_times are in range (works for list or single)
+            dsinit =((its>=it_start) & (its<=it))
+        
+            if any(dsinit):
+                good_files.append(cfile)
+                
+        if not good_files:
+            print('No init_times found in range for model ',cmod)
+            continue # Skip this init_time for this model
 
-                cdoy_end = pd.to_datetime(it + ft).timetuple().tm_yday # Get current day of year end for valid time
-                cdoy_start = pd.to_datetime(it_start + ft).timetuple().tm_yday  # Get current day of year end for valid time
+        #print('The files in range of interest are ',sorted(good_files))
+        
+        # Load in model for this init_time range, could include a few times not needed for 
+        # models lumped by month
+        drop_vars = [x for x in xr.open_dataset(sorted(good_files)[-1],autoclose=True).data_vars if x not in variables]
+        ds_model_ALL = xr.open_mfdataset(sorted(good_files), 
+                                     chunks={ 'fore_time': 1,'init_time': 1,'nj': 304, 'ni': 448},  
+                                     concat_dim='init_time', autoclose=True, 
+                                     parallel=True, drop_variables=drop_vars)
+                                     # preprocess=lambda x : is_in_time_range(x)) # 'fore_time': 1, ,
+        ds_model_ALL.rename({'nj':'x', 'ni':'y'}, inplace=True)
 
-                # Get datetime64 of valid time start and end
-                valid_start = it_start + ft
-                valid_end = it + ft
+        # Sort by init_time
+        ds_model_ALL = ds_model_ALL.sortby('init_time')
 
-                # Loop through variable of interest + any metrics (i.e. SIP) based on that
-                for metric in metrics_all[cvar]:
+        # Get Valid time
+        ds_model_ALL = import_data.get_valid_time(ds_model_ALL)
+        print('possible init times for model ', cmod, 'are ',ds_model_ALL.init_time.values)
 
-                    # File paths and stuff
-                    out_metric_dir = os.path.join(E.model['MME_NEW'][runType]['sipn_nc'], cvar, metric)
-                    if not os.path.exists(out_metric_dir):
-                        os.makedirs(out_metric_dir) 
-                        
-                    out_init_dir = os.path.join(out_metric_dir, pd.to_datetime(it).strftime('%Y-%m-%d'))
-                    if not os.path.exists(out_init_dir):
-                        os.makedirs(out_init_dir)
-                        
-                    out_mod_dir = os.path.join(out_init_dir, cmod)
-                    if not os.path.exists(out_mod_dir):
-                        os.makedirs(out_mod_dir)     
-                        
-                    out_nc_file = os.path.join(out_mod_dir, pd.to_datetime(it+ft).strftime('%Y-%m-%d')+'_'+cmod+'.nc')
+        # Select init period and fore_time of interest
+        ds_model_ALL = ds_model_ALL.sel(init_time=slice(it_start, it))
+
+        # Check we found any init_times in range
+        if ds_model_ALL.init_time.size==0:
+            print('init_time not found.')
+            continue
+            
+        print('actual init times for model ', cmod, 'are ',ds_model_ALL.init_time.values)
+
+        # Select var of interest (if available)
+        if cvar in ds_model_ALL.variables:
+            ds_model_ALL = ds_model_ALL[cvar]
+        else:
+            print('cvar not found.')
+            continue
+
+        print('**** JUST BEFORE ft loop, ds_model_ALL is ', ds_model_ALL)
+        
+        for ft in fore_slice.values: 
+
+            cdoy_end = pd.to_datetime(it + ft).timetuple().tm_yday # Get current day of year end for valid time
+            cdoy_start = pd.to_datetime(it_start + ft).timetuple().tm_yday  # Get current day of year end for valid time
+
+            # Get datetime64 of valid time start and end
+            valid_start = it_start + ft
+            valid_end = it + ft
+            
+            # Check if we have any valid times in range of target dates
+            ds_model = ds_model_ALL.where((ds_model_ALL.valid_time>=valid_start) & (ds_model_ALL.valid_time<=valid_end), drop=True) 
+            print('valid_times are ', valid_start, valid_end)
+            #print('ds_model ', ds_model)
+
+            if ds_model.fore_time.size == 0:
+                print("no fore_time found for target period.")
+                continue
+
+            ds_avg = None
+            avg_done = False  # no avg yet
+            
+            # Loop through variable of interest + any metrics (i.e. SIP) based on that
+            for metric in metrics_all[cvar]:
+
+                # File paths and stuff
+                out_metric_dir = os.path.join(E.model['MME_NEW'][runType]['sipn_nc'], cvar, metric)
+                if not os.path.exists(out_metric_dir):
+                    os.makedirs(out_metric_dir) 
+
+                out_init_dir = os.path.join(out_metric_dir, pd.to_datetime(it).strftime('%Y-%m-%d'))
+                if not os.path.exists(out_init_dir):
+                    os.makedirs(out_init_dir)
+
+                out_mod_dir = os.path.join(out_init_dir, cmod)
+                if not os.path.exists(out_mod_dir):
+                    os.makedirs(out_mod_dir)     
+
+                out_nc_file = os.path.join(out_mod_dir, pd.to_datetime(it+ft).strftime('%Y-%m-%d')+'_'+cmod+'.nc')
 #                    print((os.path.isfile(out_nc_file)), out_nc_file)
 
-                    # Only update if either we are updating All or it doesn't yet exist
-                    # OR, its one of the last 3 init times 
-                    if updateAll | (os.path.isfile(out_nc_file)==False) | np.any(it in init_slice[-2:]):
-                        #print("    Updating...")
+                # Only update if either we are updating All or it doesn't yet exist
+                # or if one of the most recent init_times 
+                if updateAll | (os.path.isfile(out_nc_file)==False) | np.any(it in init_slice[-2:]):
+                    #print("    Updating...")
+   
+                    if not avg_done:
+                        ds_avg = ds_model.mean(dim=['fore_time','init_time'])
+                        #print('Got the average for computing metrics: ',metric)
+                        avg_done = True
 
-                        # Select init period and fore_time of interest
-                        ds_model = ds_model_ALL.sel(init_time=slice(it_start, it))
+                    if metric=='mean': # Calc ensemble mean
+                        ds_metric = ds_avg.mean(dim='ensemble')
 
-                        # Check we found any init_times in range
-                        if ds_model.init_time.size==0:
-                            print('init_time not found.')
-                            continue
+                    elif metric=='SIP': # Calc probability
+                        # Remove ensemble members having missing data
+                        ok_ens = ((ds_avg.notnull().sum(dim='x').sum(dim='y'))>0) # select ensemble members with any data
+                        ds_metric = ((ds_avg.where(ok_ens, drop=True)>=0.15) ).mean(dim='ensemble').where(ds_avg.isel(ensemble=0).notnull())
 
-                        # Select var of interest (if available)
-                        if cvar in ds_model.variables:
-                            ds_model = ds_model[cvar]
-                        else:
-                            #print('cvar not found.')
-                            continue
-
-                        # Check if we have any valid times in range of target dates
-                        ds_model = ds_model.where((ds_model.valid_time>=valid_start) & (ds_model.valid_time<=valid_end), drop=True) 
-                        if ds_model.fore_time.size == 0:
-                            #print("no fore_time found for target period.")
-                            continue
-
-                        # Average over for_time and init_times
-                        ds_model = ds_model.mean(dim=['fore_time','init_time'])
-
-                        if metric=='mean': # Calc ensemble mean
-                            ds_model = ds_model.mean(dim='ensemble')
-
-                        elif metric=='SIP': # Calc probability
-                            # Remove ensemble members having missing data
-                            ok_ens = ((ds_model.notnull().sum(dim='x').sum(dim='y'))>0) # select ensemble members with any data
-                            ds_model = ((ds_model.where(ok_ens, drop=True)>=0.15) ).mean(dim='ensemble').where(ds_model.isel(ensemble=0).notnull())
-
-                        elif metric=='anomaly': # Calc anomaly in reference to mean observed 1980-2010
-                            # Get climatological mean
-                            da_obs_mean = mean_1980_2010_sic.isel(time=slice(cdoy_start,cdoy_end)).mean(dim='time')
-                            # Calc anomaly
-                            ds_model = ds_model.mean(dim='ensemble') - da_obs_mean
-                            # Add back lat/long (get dropped because of round off differences)
-                            ds_model['lat'] = da_obs_mean.lat
-                            ds_model['lon'] = da_obs_mean.lon
-                        else:
-                            raise ValueError('metric not implemented')
-
-                        # drop ensemble if still present
-                        if 'ensemble' in ds_model:
-                            ds_model = ds_model.drop('ensemble')
-
-                        ds_model.coords['model'] = cmod
-                        if 'xm' in ds_model:
-                            ds_model = ds_model.drop(['xm','ym']) #Dump coords we don't use
-
-                        # Add Coords info
-                        ds_model.name = metric
-                        ds_model.coords['model'] = cmod
-                        ds_model.coords['init_start'] = it_start
-                        ds_model.coords['init_end'] = it
-                        ds_model.coords['valid_start'] = it_start+ft
-                        ds_model.coords['valid_end'] = it+ft
-                        ds_model.coords['fore_time'] = ft
+                    elif metric=='anomaly': # Calc anomaly in reference to mean observed 1980-2010
+                        # Get climatological mean
+                        da_obs_mean = mean_1980_2010_sic.isel(time=slice(cdoy_start,cdoy_end)).mean(dim='time')
+                        # Calc anomaly
+                        ds_metric = ds_avg.mean(dim='ensemble') - da_obs_mean
+                        # Add back lat/long (get dropped because of round off differences)
+                        ds_metric['lat'] = da_obs_mean.lat
+                        ds_metric['lon'] = da_obs_mean.lon
                         
-                        # Save to file
-                        ds_model.to_netcdf(out_nc_file)
+                    else:
+                        raise ValueError('metric not implemented')
 
-                        # Clean up for current model
-                        ds_model = None
+                    # drop ensemble if still present does not do it though
+                    if 'ensemble' in ds_metric:
+                        print('Getting rid of ensemble variable')
+                        ds_metric = ds_metric.drop('ensemble')
+
+                    ds_metric.coords['model'] = cmod
+                    if 'xm' in ds_metric:
+                        ds_metric = ds_metric.drop(['xm','ym']) #Dump coords we don't use
+
+                    # Add Coords info
+                    ds_metric.name = metric
+                    ds_metric.coords['model'] = cmod
+                    ds_metric.coords['init_start'] = it_start
+                    ds_metric.coords['init_end'] = it
+                    ds_metric.coords['valid_start'] = it_start+ft
+                    ds_metric.coords['valid_end'] = it+ft
+                    ds_metric.coords['fore_time'] = ft
+
+                    # check if the data are missing 
+                    if ds_metric.sum(dim=['x','y']).values == 0.:
+                        print('Warning Metric is Undefined, no file written: ',out_nc_file)
+                        if os.path.exists(out_nc_file):
+                            os.remove(out_nc_file)
+                        continue
 
 
-# In[21]:
+                    #print('Done computing metric, our da is now: ', ds_metric)
+                    #print('Saving to file: ',out_nc_file)
+                    # Save to file
+                    ds_metric.to_netcdf(out_nc_file)
+
+                    #ds_metric.plot()
+                    #plt.figure()
+
+
+            #if avg_done:
+            #    diehere
+
+# Clean up 
+ds_model = None
+ds_avg = None
+ds_metric = None
+
+
+# In[ ]:
+
+
+# test
+cfile='/home/disk/sipn/nicway/data/model/MME_NEW/forecast/sipn_nc/sic/anomaly/2019-08-25/fgoalssipn/2019-08-25_fgoalssipn.nc'
+#cfile='/home/disk/sipn/nicway/data/model/MME_NEW/forecast/sipn_nc/sic/anomaly/2019-07-28/fgoalssipn/2019-12-01_fgoalssipn.nc'
+cfile='/home/disk/sipn/nicway/data/model/MME_NEW/forecast/sipn_nc/sic/anomaly/2019-07-28/fgoalssipn/2019-12-08_fgoalssipn.nc'
+cfile='/home/disk/sipn/nicway/data/model/MME_NEW/forecast/sipn_nc/sic/anomaly/2019-07-28/fgoalssipn/2019-10-06_fgoalssipn.nc'
+ds=xr.open_mfdataset(cfile)
+print(ds.anomaly.sum(dim=['x','y']).values)
+#ds.anomaly.plot()
+
+
+# In[ ]:
+
+
+skip = True   # this is the old way before tried to make it a bit faster without changing answers
+
+if not skip:
+
+    # Plot all Models
+    for cmod in models_2_plot:
+        print(cmod)
+
+        # Load in Model
+        # Find only files that have current year and month in filename (speeds up loading)
+        all_files = os.path.join(E.model[cmod][runType]['sipn_nc'], '*.nc') 
+    #    all_files = os.path.join(E.model[cmod][runType]['sipn_nc'], '*201906*.nc') 
+
+        # Check we have files 
+        files = glob.glob(all_files)
+        if not files:
+            continue # Skip this model
+
+        # Get list of variablse we want to drop
+        drop_vars = [x for x in xr.open_dataset(sorted(files)[-1],autoclose=True).data_vars if x not in variables]
+        print('The files in range of interest are ',files)
+        # Load in model   
+        ds_model_ALL = xr.open_mfdataset(sorted(files), 
+                                     chunks={ 'fore_time': 1,'init_time': 1,'nj': 304, 'ni': 448},  
+                                     concat_dim='init_time', autoclose=True, 
+                                     parallel=True, drop_variables=drop_vars)
+                                     # preprocess=lambda x : is_in_time_range(x)) # 'fore_time': 1, ,
+        ds_model_ALL.rename({'nj':'x', 'ni':'y'}, inplace=True)
+
+        # Sort by init_time
+        ds_model_ALL = ds_model_ALL.sortby('init_time')
+
+        # Get Valid time
+        ds_model_ALL = import_data.get_valid_time(ds_model_ALL)
+        print('init times are ',ds_model_ALL.init_time.values)
+
+
+        # For each variable
+        for cvar in variables:
+
+            # For each init time period
+            for it in init_slice: 
+                it_start = it-np.timedelta64(Ndays,'D') + np.timedelta64(1,'D') # Start period for init period (it is end of period). Add 1 day because when
+                # we select using slice(start,stop) it is inclusive of end points. So here we are defining the start of the init AND the start of the valid time.
+                # So we need to add one day, so we don't double count.
+                print('it_start  ',it_start,"to",it)
+
+                # For each forecast time we haven't plotted yet
+                #ft_to_plot = ds_status.sel(init_time=it)
+                #ft_to_plot = ft_to_plot.where(ft_to_plot.isnull(), drop=True).fore_time
+
+                for ft in fore_slice.values: 
+
+                    cdoy_end = pd.to_datetime(it + ft).timetuple().tm_yday # Get current day of year end for valid time
+                    cdoy_start = pd.to_datetime(it_start + ft).timetuple().tm_yday  # Get current day of year end for valid time
+
+                    # Get datetime64 of valid time start and end
+                    valid_start = it_start + ft
+                    valid_end = it + ft
+
+                    # Loop through variable of interest + any metrics (i.e. SIP) based on that
+                    for metric in metrics_all[cvar]:
+
+                        # File paths and stuff
+                        out_metric_dir = os.path.join(E.model['MME_NEW'][runType]['sipn_nc'], cvar, metric)
+                        if not os.path.exists(out_metric_dir):
+                            os.makedirs(out_metric_dir) 
+
+                        out_init_dir = os.path.join(out_metric_dir, pd.to_datetime(it).strftime('%Y-%m-%d'))
+                        if not os.path.exists(out_init_dir):
+                            os.makedirs(out_init_dir)
+
+                        out_mod_dir = os.path.join(out_init_dir, cmod)
+                        if not os.path.exists(out_mod_dir):
+                            os.makedirs(out_mod_dir)     
+
+                        out_nc_file = os.path.join(out_mod_dir, pd.to_datetime(it+ft).strftime('%Y-%m-%d')+'_'+cmod+'.nc')
+    #                    print((os.path.isfile(out_nc_file)), out_nc_file)
+
+                        # Only update if either we are updating All or it doesn't yet exist
+                        # OR, its one of the last 3 init times 
+                        if updateAll | (os.path.isfile(out_nc_file)==False) | np.any(it in init_slice[-2:]):
+                            #print("    Updating...")
+
+                            # Select init period and fore_time of interest
+                            ds_model = ds_model_ALL.sel(init_time=slice(it_start, it))
+
+                            # Check we found any init_times in range
+                            if ds_model.init_time.size==0:
+                                #print('init_time not found.')
+                                continue
+
+                            # Select var of interest (if available)
+                            if cvar in ds_model.variables:
+                                ds_model = ds_model[cvar]
+                            else:
+                                #print('cvar not found.')
+                                continue
+
+                            # Check if we have any valid times in range of target dates
+                            ds_model = ds_model.where((ds_model.valid_time>=valid_start) & (ds_model.valid_time<=valid_end), drop=True) 
+                            if ds_model.fore_time.size == 0:
+                                #print("no fore_time found for target period.")
+                                continue
+                            print('Averaging over fore_time and init_time for variable ds_model: ')
+                            print(ds_model)
+                            # Average over for_time and init_times
+                            ds_model = ds_model.mean(dim=['fore_time','init_time'])
+
+                            print('Got the average now computing metric: ',metric)
+
+
+                            if metric=='mean': # Calc ensemble mean
+                                ds_model = ds_model.mean(dim='ensemble')
+
+                            elif metric=='SIP': # Calc probability
+                                # Remove ensemble members having missing data
+                                ok_ens = ((ds_model.notnull().sum(dim='x').sum(dim='y'))>0) # select ensemble members with any data
+                                ds_model = ((ds_model.where(ok_ens, drop=True)>=0.15) ).mean(dim='ensemble').where(ds_model.isel(ensemble=0).notnull())
+
+                            elif metric=='anomaly': # Calc anomaly in reference to mean observed 1980-2010
+                                # Get climatological mean
+                                da_obs_mean = mean_1980_2010_sic.isel(time=slice(cdoy_start,cdoy_end)).mean(dim='time')
+                                # Calc anomaly
+                                ds_model = ds_model.mean(dim='ensemble') - da_obs_mean
+                                # Add back lat/long (get dropped because of round off differences)
+                                ds_model['lat'] = da_obs_mean.lat
+                                ds_model['lon'] = da_obs_mean.lon
+                            else:
+                                raise ValueError('metric not implemented')
+
+                            print('Done computing metric, our da is now: ', ds_model)
+
+                            # drop ensemble if still present
+                            if 'ensemble' in ds_model:
+                                ds_model = ds_model.drop('ensemble')
+
+                            ds_model.coords['model'] = cmod
+                            if 'xm' in ds_model:
+                                ds_model = ds_model.drop(['xm','ym']) #Dump coords we don't use
+
+                            # Add Coords info
+                            ds_model.name = metric
+                            ds_model.coords['model'] = cmod
+                            ds_model.coords['init_start'] = it_start
+                            ds_model.coords['init_end'] = it
+                            ds_model.coords['valid_start'] = it_start+ft
+                            ds_model.coords['valid_end'] = it+ft
+                            ds_model.coords['fore_time'] = ft
+
+                            # Save to file
+                            ds_model.to_netcdf(out_nc_file)
+
+                            # Clean up for current model
+                            ds_model = None
+
+
+# In[ ]:
 
 
 ###########################################################
@@ -342,7 +593,7 @@ obs_clim_model = xr.open_mfdataset(sorted(files),
          concat_dim='time', autoclose=True, parallel=True)
 
 
-# In[24]:
+# In[ ]:
 
 
 # For each variable
@@ -355,7 +606,7 @@ for cvar in variables:
         # So we need to add one day, so we don't double count.
         print(it_start,"to",it)
 
-        for ft in da_slices.values: 
+        for ft in fore_slice.values: 
 
             cdoy_end = pd.to_datetime(it + ft).timetuple().tm_yday # Get current day of year end for valid time
             cdoy_start = pd.to_datetime(it_start + ft).timetuple().tm_yday  # Get current day of year end for valid time
@@ -438,9 +689,11 @@ for cvar in variables:
 
                         # Clean up for current model
                         ds_model = None
+                        
+obs_clim_model = None
 
 
-# In[25]:
+# In[ ]:
 
 
 ############################################################################
@@ -449,12 +702,11 @@ for cvar in variables:
 
 cmod = 'Observed'
 
-updateAll = True # We ALWAYS want to update all observations for past year, because each day we get new obs that can be used to evaluate forecasts from up to 12 months ago
+updateAll = True # We ALWAYS want to update all observations for recent past
 
-# make init_start_date one year ago plus a few days for good measure
-# first date we have recompute
-# only updates files if missing or if forced with updateAll=True
-init_start_date = np.datetime64('today') - np.timedelta64(375,'D')
+# make init_start_date about 1 mon ago
+
+init_start_date = np.datetime64('today') - np.timedelta64(32,'D')
 
 print('init_start_date ',init_start_date)
     
@@ -474,7 +726,7 @@ for cvar in variables:
         # So we need to add one day, so we don't double count.
         print(it_start,"to",it)
 
-        for ft in da_slices.values: 
+        for ft in fore_slice.values: 
 
             cdoy_end = pd.to_datetime(it + ft).timetuple().tm_yday # Get current day of year end for valid time
             cdoy_start = pd.to_datetime(it_start + ft).timetuple().tm_yday  # Get current day of year end for valid time
@@ -704,4 +956,5 @@ print("Finished Calculating Weekly means")
 # ds_ALL=None # Flush memory
 # MME_avg=None
 # ds_m=None
+
 

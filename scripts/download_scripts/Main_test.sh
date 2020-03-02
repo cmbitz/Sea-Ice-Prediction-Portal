@@ -14,24 +14,22 @@
 #set -e  # Stop on any error
 
 # Set up python paths
-#source $HOME/.bashrc
-source /home/disk/sipn/nicway/.bashrc
-source ../path_file.sh
+source $HOME/.bashrc
+#source /home/disk/sipn/nicway/.bashrc  
+source /home/disk/sipn/bitz/python/ESIO/scripts/path_file.sh
 source activate esio
+export PYTHONPATH="/home/disk/sipn/bitz/python/ESIO":$PTHONPATH                                                
 
+which python
 
 failfunction()
 {
     if [ "$1" != 0 ]
-    then echo "One of the commands has failed! Mailing for help."
-        mail -s "Error in Daily SIPN2 run."  $EMAIL <<< $2
+    then echo "One of the commands has failed! NOT Mailing for help."
+#        mail -s "Error in Daily SIPN2 run." $EMAIL <<< $2
 	exit
     fi
 }
-
-# testing failfunction
-#cd /home/asdfsd/ 
-#failfunction "$?" "test failed"
 
 # Make sure the ACF REPO_DIR environment variable is set
 if [ -z "$REPO_DIR" ]; then
@@ -39,90 +37,70 @@ if [ -z "$REPO_DIR" ]; then
     exit 1
 fi
 
-# Model downloads
-                                                                               
-#python $REPO_DIR"/scripts/download_scripts/Download_s2s.py" "recent" 
-#failfunction "$?" "Download_s2s.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
-
-# python $REPO_DIR"/scripts/download_scripts/Download_C3S.py" "recent" 
-# Allowing fail of ukmo and ecmwf for now
-#failfunction "$?" "Download_C3S.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
-
-#$REPO_DIR"/scripts/download_scripts/download_RASM_ESRL.sh" 
-#failfunction "$?" "download_RASM_ESRL.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
-
-#$REPO_DIR"/scripts/download_scripts/download_NRL_GOFS3_1.sh"
-#failfunction "$?" "download_NRL_GOFS3_1.sh had an Error. See log. (https://atmos.washington.edu/~nicway/sipn/log/)"
-
-#wait # Below depends on above
+# Call all download scripts that grab near-real-time data
+$REPO_DIR"/scripts/download_scripts/download_NSIDC_0081.sh" & # Fast
+$REPO_DIR"/scripts/download_scripts/download_NSIDC_extents.sh"  # Fast
+echo "done with NSIDC downloads"
+failfunction "$?" "download_NSIDC_0081.sh or download_NSIDC_extents.sh had an Error. See log." 
 
 # Move to notebooks
 cd $REPO_DIR"/notebooks/" # Need to move here as some esiodata functions assume this
 
+python "./Agg_NSIDC_Obs.py"
+failfunction "$?" "Agg_NSIDC_Obs.py had an Error. See log." 
+
+echo "Main_6hrly: done major analysis on obs in Agg_NSIDC_Obs"
+
+# ClimoTrend of the weekly means, takes 5-10 mins usually, depends on previous 
+python "./Calc_Obs_ClimoTrendWeekly.py"
+failfunction "$?" "Agg_NSIDC_Obs.py had an Error. See log." 
+
+echo "Main_6hrly: done with Calc_Obs_ClimoTrendWeekly"
+
+# ClimoTrend of the weekly means, takes 5-10 mins usually, depends on previous
+python "./Interpolate_ClimoTrend_weekly_to_daily.py"
+failfunction "$?" "Interpolate_ClimoTrend_weekly_to_daily.py had an Error. See log." 
+
+echo "Main_6hrly: done Interpolate_ClimoTrend_weekly_to_daily"
+
+#  run for fun,  not being used for anything further. it makes a nice fig
+python "./Calc_Obs_DampAnomWeekly.py"
+failfunction "$?" "Calc_Obs_DampanomWeekly.py had an Error. See log." 
+#  Make the daily damped anomaly benchmark, takes a few minutes
+python "./Calc_Obs_DampAnomDaily.py"
+failfunction "$?" "Calc_Obs_DampAnomDaily.py had an Error. See log."
+
+echo "Main_6hrly: done with DampAnom stuff"
+
+# CC thinks this is working perhaps should modify to put the regional extents etc on clouds
+# Convert obs only to Zarr, not sure why exactly
+python "./Convert_netcdf_to_Zarr.py"
+failfunction "$?" "Convert_netcdf_to_Zarr.py had an Error. See log."
+
+# CC is not working cuz gsutil is not in my path, not sure where it is
+# Upload to GCP
+# /home/disk/sipn/nicway/data/obs/zarr/update_obs.sh
+
 # Import Models to sipn format
-#source activate pynioNew # Required to process grib files
-#python "./Regrid_S2S_Models.py"
-#failfunction "$?" "Regrid_S2S_Models.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+source activate pynioNew # Requires new env
+python "./Regrid_YOPP.py"
+failfunction "$?" "Regrid_YOPP.py had an Error. See log." 
 
-#python "./Regrid_RASM.py"
-#failfunction "$?" "Regrid_RASM.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
-
-#python "./Regrid_CFSv2.py"
-#failfunction "$?" "Regrid_CFSv2.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
-
-wait
 source activate esio
+
 wait # Below depends on above
 
-echo Aggregations
-# Calc Aggregate metrics (e.g. extent for different regions)
-#python "./Calc_Model_Aggregations.py"
-#failfunction "$?" "Calc_Model_Aggregations.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
-
-echo "Damped Persistence"
-# Aggregate to weekly mean, anomaly, SIP
-#python "./Model_Damped_Anomaly_Persistence.py"
-#failfunction "$?" "Model_Damped_Anomaly_Persistence.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
-
-echo "To Weekly"
-# Aggregate SIC to weekly forecasts
-#python "./Calc_Weekly_Model_Metrics.py"
-#failfunction "$?" "Calc_Weekly_Model_Metrics.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
-
-echo "Weekly to Zarr"
-# Aggregate Monthly CHunked Zarr files to one big Zarr file
-#python "./Agg_Weekly_to_Zarr.py"
-#failfunction "$?" "Agg_Weekly_to_Zarr.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)."
-
-echo "Zarr to Cloud"
-# Upload Zarr files to Google Cloud Bucket
-#/home/disk/sipn/nicway/data/model/zarr/upload.sh
-
-echo "python plots"
 # Make Plots
-which python
 
-echo "plot extent"
-# Extents
-python "./plot_Extent_Model_Obs.py"
-#failfunction "$?" "plot_Extent_Model_Obs.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+# Observations
+echo "plot observations"
+python "./plot_observations.py" 
+failfunction "$?" "plot_observations.py had an Error. See log." 
 
-echo "plot regional extent"
-python "./plot_Regional_Extent.py"
-#failfunction "$?" "plot_Regional_Extent.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
+# Availblity plots, giving memory errors now so skip until have time to fix
+#echo "plot forecast availability"
+#python "./plot_forecast_availability.py" &
+#failfunction "$?" "plot_forecast_availability.py had an Error. See log." 
 
-echo "plot maps"
-# Maps
-python "./plot_Maps_Fast_from_database.py" 
-#failfunction "$?" "plot_Maps_Fast_from_database.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)." 
 
-echo "evaluate SIC"
-# Evaluation of SIC forecasts
-python "./Eval_weekly_forecasts.py"
-#failfunction "$?" "Eval_weekly_forecasts.py had an Error. See log (https://atmos.washington.edu/~nicway/sipn/log/)"
-
-# This needs updating
-#python "./plot_Regional_maps.py"
-#failfunction "$?" "plot_Regional_maps.py had an Error. See log." 
-
-echo Finished NRT script.
+echo Finished NRT script but python still running to make plots.

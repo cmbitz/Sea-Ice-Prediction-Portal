@@ -3,11 +3,11 @@
 
 # # FGOALS Forecast
 # 
-# - Loads in all daily forecasts of sea ice
+# - Loads in all daily forecasts of sea ice for a given initial date (combines lead times and ensemble members, this is the slow part)
 # - Regrids to polar stereographic,
-# - Saves to netcdf files grouped by month of initial date
+# - Saves to netcdf files for each initial date
 
-# In[ ]:
+# In[1]:
 
 
 '''
@@ -49,18 +49,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 # ESIO Imports
 from esio import import_data
 
-import dask
+#import dask
 #from dask.distributed import Client
 
 
-# In[23]:
+# In[2]:
 
 
 #client = Client(n_workers=8)
 #client
 
 
-# In[25]:
+# In[3]:
 
 
 # General plotting settings
@@ -68,7 +68,7 @@ sns.set_style('whitegrid')
 sns.set_context("talk", font_scale=1.5, rc={"lines.linewidth": 2.5})
 
 
-# In[26]:
+# In[4]:
 
 
 # Directories
@@ -81,25 +81,22 @@ data_out = os.path.join(base_dir, 'model', model, runType, 'sipn_nc')
 stero_grid_file = os.path.join(base_dir, 'grids', 'stereo_gridinfo.nc')
 
 
-# In[27]:
+# In[5]:
 
 
-updateall = False
-
-
-# In[28]:
-
-
-
-
-
-# In[29]:
-
+# the number of ensemble members and lead times need to be the same each for each initial time
+# or else our analysis will fail later
+# at first this modeling group changed their file format a lot, but now they are almost always the same
+# possibly the occasional variation is an upload error. Here we skip those "bad" initial times
+ntimes_expecting = 65
+nens_expecting = 16
 
 # look for new data each day and concat into a manageable file
 
 native_dir=os.path.join(data_dir,'native')
-orig_dir=os.path.join(native_dir,'orig')
+#orig_dir=os.path.join(native_dir,'orig')
+orig_dir=os.path.join(ftp_dir,model,runType,'FGOALS-f2_S2S_v1.3')
+
 print(orig_dir)
 
 init_dates = []
@@ -107,6 +104,11 @@ for (dirpath, dirnames, filenames) in walk(orig_dir):
     init_dates.extend(dirnames)
     break
     
+# remove directories that do not begin with "2"
+for i in init_dates:
+    if i[0] != '2':
+        init_dates.remove(i)
+        
 print(init_dates)
 
 for itstr in init_dates:
@@ -120,36 +122,48 @@ for itstr in init_dates:
     for (dirpath, dirnames, filenames) in walk(itdata_dir):
         ens_dirs.extend(dirnames)
         break
-    nens=len(ens_dirs)
-    print(nens)
-    print(ens_dirs)
-    tmp = ens_dirs[0].split('-')
-    e=int(tmp[2])
 
+    nens=len(ens_dirs)
+    print('There are ',nens, ' ensemble members for this init time')
+    
+    if nens != nens_expecting:
+        print('    wrong number of ensembe members, skipping this init time')
+        continue
+        
+    print('The subdirectories with each ensemble member are: ',ens_dirs)
+    
+    correct_ntimes = True  # assume right number
+    
     ds_list = []
     for esub in ens_dirs:
         tmp = esub.split('-')
-        e=int(tmp[2])
-        cfiles = os.path.join(itdata_dir, esub, '*.cice.h1.*.nc')  
-        print(cfiles)
-        ds = xr.open_mfdataset(cfiles, concat_dim='time', chunks={'time': 1, 'nj': 112, 'ni': 320} , parallel=True)
+        tmp = tmp[2]
+        e=int(tmp[-2:])  
+        cfiles = os.path.join(itdata_dir, esub)  
+        print('Ensemble #',e,' for files:', cfiles)
+        cfiles = os.path.join(cfiles, '*.cice.h1.*.nc') 
+        ds = xr.open_mfdataset(cfiles, concat_dim='time')
 
     #    # Add ensemble coord
         ds.coords['ensemble'] = e
         da=ds.aice_d
         da=da.expand_dims('ensemble')
-        #print(da)
         ds_list.append(da)
 
-    #print(ds_list)    
+        ntimes = len(da.time.values)
+        if ntimes != ntimes_expecting:
+            correct_ntimes = False  
+            print('    there are not 65 lead times, skipping this init time')
+            continue
 
-    print('merge to one and save file ',f_out)
-    ds_all = xr.merge(ds_list)
-    print(ds_all)
-    ds_all.to_netcdf(f_out)
+    if correct_ntimes:
+        print('merge to one and save file ',f_out)
+        ds_all = xr.merge(ds_list)
+        print(ds_all)
+        ds_all.to_netcdf(f_out)
 
 
-# In[32]:
+# In[6]:
 
 
 obs_grid = import_data.load_grid_info(stero_grid_file, model='NSIDC')
@@ -158,110 +172,83 @@ obs_grid = import_data.load_grid_info(stero_grid_file, model='NSIDC')
 obs_grid['lat_b'] = obs_grid.lat_b.where(obs_grid.lat_b < 90, other = 90)
 
 
-# In[33]:
+# In[7]:
 
 
 # Regridding Options
 method='nearest_s2d' # ['bilinear', 'conservative', 'nearest_s2d', 'nearest_d2s', 'patch']
 
 
-# In[76]:
-
-
-
-
-
 # In[ ]:
+
+
+
+
+
+# In[8]:
 
 
 weights_flag = False # Flag to set up weights have been created
 have_grid_file  = False
 
-
-# In[69]:
-
-
 # CICE model variable names
 varnames = ['aice_d']
 
-cd = datetime.datetime.now()
-thisyear = cd.year
-thismonth = cd.month
-print(thisyear,thismonth)
+
+# In[9]:
 
 
-# In[80]:
+all_files = glob.glob(os.path.join(native_dir, '*.nc'))
+#print(all_files)
+print(data_out)
 
+for cfile in all_files:
+    tmp = cfile.split('-')
+    itstr = tmp[1].split('.')
+    itstr = itstr[0]    
+    f_out=os.path.join(data_out,model+'_'+itstr+'_Stereo.nc')
 
-# Always import the most recent two months of files (because they get updated)    
-for im in [thismonth-1,thismonth]:
-    cm=im    
-    if im==0:
-        cm=12
-        year=thisyear-1
-    else:
-        cm = im
-        year = thisyear
+    if (os.path.isfile(f_out)):
+        print(f_out, ' already exists - skipping')
+        continue
+    
+    print('itime pieces are ',itstr[0:4], itstr[4:6], itstr[6:8] )
+    itime = np.datetime64(datetime.datetime(int(itstr[0:4]), int(itstr[4:6]), int(itstr[6:8])))
+    print('itime is ',itime)
 
-    f_out = os.path.join(data_out, model+'_'+str(year)+'_'+format(cm,'02')+'_Stereo.nc')
-    print('Working on ',f_out)   
-    # Check any files for this year exist:
-    cfiles=glob.glob(os.path.join(data_dir, 'native','*'+str(year)+format(cm, '02')+'*.nc'))
-    cfiles = sorted(cfiles) 
-    if (len(cfiles)==0):
-        print("Skipping since no files found for year and month", year, cm, ".")
-        continue    
+    ds = xr.open_mfdataset(cfile,  parallel=True)
+    da = ds.aice_d
+    da.coords['init_time'] = itime
+    da = da.expand_dims('init_time')
+    da = da.rename({'time':'fore_time'})
+    #dt_mod = da.time.values[1] - da.time.values[0]
+    da.coords['fore_time'] = pd.to_timedelta(np.arange(1,len(da.fore_time)+1,1), unit='D')
 
-    print("Procesing year ", year, cm)
-    print(cfiles)
-
-    da_all = []
-    for ifile in cfiles:
-        print(ifile)
-        tmp = ifile.split('-')
-        tmp = tmp[1].split('.')
-        date=tmp[0]
-        itime = np.datetime64(datetime.datetime(int(date[0:4]), int(date[5:6]), int(date[7:8])))
-        # print(np.datetime64(date)) # this might have worked
-        ds = xr.open_mfdataset(ifile,  parallel=True)
-        da = ds.aice_d
-        da.coords['init_time'] = itime
-        da = da.expand_dims('init_time')
-        da = da.rename({'time':'fore_time'})
-        #dt_mod = da.time.values[1] - da.time.values[0]
-        da.coords['fore_time'] = pd.to_timedelta(np.arange(1,len(da.fore_time)+1,1), unit='D')
-        da_all.append(da)
-
-    da_all = xr.concat(da_all, dim='init_time')
-    da_all.name = 'sic'
-    da_all.coords['lon'] = da_all.TLON
-    da_all.coords['lat'] = da_all.TLAT
-    da_all = da_all.drop(['TLAT','TLON'])
-    da_all = da_all/100 # percent to fraction
-    print(da_all)
+    da.name = 'sic'
+    da.coords['lon'] = da.TLON
+    da.coords['lat'] = da.TLAT
+    da = da.drop(['TLAT','TLON'])
+    da = da/100 # percent to fraction
+    #print(da)
 
     # Calculate regridding matrix
-    regridder = xe.Regridder(da_all, obs_grid, method, periodic=False, reuse_weights=weights_flag)
+    regridder = xe.Regridder(da, obs_grid, method, periodic=False, reuse_weights=weights_flag)
     weights_flag = True # Set true for following loops
 
     # Add NaNs to empty rows of matrix (forces any target cell with ANY source cells containing NaN to be NaN)
     if method=='conservative':
         regridder = import_data.add_matrix_NaNs(regridder)
 
-    da_out = regridder(da_all)
+    da_out = regridder(da)
+
+    print('Saved file', f_out)
     # Save regridded to netcdf file
     da_out.to_netcdf(f_out)
 
-    # Save regridded to multiple netcdf files by month
-#         months, datasets = zip(*ds_out_all.groupby('init_time.month'))
-#         paths = [os.path.join(data_out, 'GFDL_FLOR_'+str(year)+'_'+str(m)+'_Stereo.nc') for m in months]
-#         xr.save_mfdataset(datasets, paths)
-
-    da_all = None # Memory clean up
-    print('Saved file', f_out)
+da = None # Memory clean up
 
 
-# In[81]:
+# In[10]:
 
 
 # Clean up
@@ -269,29 +256,30 @@ if weights_flag:
     regridder.clean_weight_file()  # clean-up
 
 
-# In[91]:
+# In[11]:
 
 
 #client.close()
 
 
-# # Plotting
+# # Checking and Plotting
 
-# In[82]:
-
-
-#ds_new = xr.open_dataset(f_out)
+# In[46]:
 
 
-# In[83]:
+ds_new = xr.open_dataset(f_out)
 
 
-#ds_new
+# In[32]:
 
 
-# In[90]:
+ds_new
+
+
+# In[47]:
 
 
 #plt.figure()
-#ds_new.sic.sel(ensemble=11).isel(fore_time=0,init_time=3).plot()
+#ds_new.sic.sel(ensemble=11).isel(fore_time=0,init_time=0).plot()
+
 

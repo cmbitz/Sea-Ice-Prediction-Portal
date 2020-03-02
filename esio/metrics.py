@@ -165,8 +165,12 @@ def calc_IFD_10day(da, sic_threshold=0.5, DOY_s=1, time_dim='time', Nday=10, def
     
     # 2) that never melted (perenial) to NaN
     # Grab last model time (end of Sept) and get mask of where ice is
-    perenial_ice_mask = (da.isel(time=da.time.size-1) >= sic_threshold)
+    #perenial_ice_mask = (da.isel(time=da.time.size-1) >= sic_threshold)
+    # instead make the perennial mask true ice is never below 0.5
+    perenial_ice_mask = (da.min(dim='time') >= sic_threshold)
+
     ifd = ifd.where(~perenial_ice_mask, other=275)
+
     #plt.figure()
     #ifd.plot()
         
@@ -450,8 +454,6 @@ def _lowessfit(x=None, y=None, dummy=None):
             
     return (fitparms)
 
-
-
 def LowessQuadFit(obj, xdim):
     time_nums = xr.DataArray(obj[xdim].values.astype(np.float),
                              dims=xdim,
@@ -472,6 +474,82 @@ def LowessQuadFit(obj, xdim):
     return (p1)
 
 
+def _improvedlowessfit(x=None, y=None, dummy=None, maxorder = 2):
+    # lowess smooth and then fit with polynomial
+    # returns fit parameters output from polyfit
+
+    order = maxorder # to start
+
+    basevalue=np.nanmean(y[0:10])
+    yn=np.where(y<basevalue*0.995, y, np.nan)
+    
+    if (np.count_nonzero(np.isnan(yn[-5:]))>1):  # >1 nan values in last 5 yrs 
+        #print('Too many nans in last 5 yrs, skip fit and use mean ')
+        fitparms = np.zeros(maxorder+1)
+        fitparms[maxorder] = np.nanmean(y[-5:])  # use y not yn!
+        return (fitparms)  # and we are done
+
+    if (np.count_nonzero(np.isnan(yn[0:14]))>10):  # >10 nan values in first 15 yrs 
+        #print('Too many nans in first half, use first order fit on second half')
+        order = 1
+        y=y[15:]
+        x=x[15:]
+    #else:
+        #print('normal second order case')
+
+    nonans = np.logical_or(np.isnan(x), np.isnan(y))
+    x_nonans = x[~nonans]
+    y_nonans = y[~nonans]
+
+    if y_nonans.size == 0:
+        
+        fitparms = np.empty(order+1) * np.nan
+    else: 
+        sumy = np.sum(y_nonans)
+        leny = 1.0*np.size(y_nonans)
+        fitparms = np.zeros(order+1)
+        if (sumy>0. and sumy != leny):  # had sumy < leny here but this seems more general
+            # lowess will return our "smoothed" data with a y value for at every x-value
+            # important for eliminating problems with outliers
+            lowess = sm.nonparametric.lowess(y_nonans, x_nonans, frac=.3)  # higher frac is smoother
+
+            # unpack the lowess smoothed points to their values
+            lowess_y = list(zip(*lowess))[1]
+
+            if (len(x_nonans)!=len(lowess_y)):
+                print('error fitting! ')
+                print('sumy, leny, len(x_nonans), len(lowess_y) ', sumy, leny, len(x_nonans), len(lowess_y))
+            else: 
+                # we can use a higher order fit after lowess smoothing
+                # smoothing was much less important than the 2nd order fit
+                fitparms = np.polyfit(x_nonans, lowess_y, order)
+        elif (sumy==leny):
+            fitparms[order] = 1.0
+
+        if order == 1:
+            tmp=np.copy(fitparms) #save 
+            fitparms = np.zeros(maxorder+1)
+            fitparms[maxorder] = tmp[1]
+            fitparms[maxorder-1] = tmp[0]
+              
+    return (fitparms) # too bad cannot return more than one variable. oh well
+
+def ImprovedLowessFit(obj, xdim, maxorder):
+    time_nums = xr.DataArray(obj[xdim].values.astype(np.float),
+                             dims=xdim,
+                             coords={xdim: obj[xdim]},
+                             name=xdim)
+    
+    dummy = xr.DataArray(np.random.randn(maxorder+1), coords={'pdim': np.arange(0,maxorder+1,1)}, dims=('pdim'))
+    
+    p1 = xr.apply_ufunc(_improvedlowessfit, time_nums, obj, dummy, maxorder,
+                                vectorize=True,
+                                input_core_dims=[[xdim], [xdim], ['pdim'], []],
+                                output_core_dims=[['pdim']],
+                                output_dtypes=[np.float],
+                                dask='parallelized')
+    
+    return (p1)
 
 def _lowessext(x=None, y=None, pyear=None):
 
@@ -501,8 +579,6 @@ def _lowessext(x=None, y=None, pyear=None):
         #    return (znew, zfit)
 
     return (znew)
-
-
 
 def LowessFitModel(obj, xdim, pyear):
     time_nums = xr.DataArray(obj[xdim].values.astype(np.float),

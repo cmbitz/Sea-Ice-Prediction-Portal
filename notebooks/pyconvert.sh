@@ -10,6 +10,8 @@
 #
 #GNU General Public License v3.0
 
+source activate esio
+
 # Get input jupyter notebook file name
 f_ipy=$1
 

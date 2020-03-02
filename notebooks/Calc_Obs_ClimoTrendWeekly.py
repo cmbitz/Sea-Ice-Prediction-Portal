@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 '''
@@ -34,9 +34,9 @@ estimate each week!!!
 
 '''
 
-#get_ipython().magic('matplotlib inline')
-#get_ipython().magic('load_ext autoreload')
-#get_ipython().magic('autoreload')
+
+
+
 import matplotlib
 import matplotlib.pyplot as plt
 from collections import OrderedDict
@@ -65,7 +65,7 @@ sns.set_style('whitegrid')
 sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 
 
-# In[2]:
+# In[3]:
 
 
 # from dask.distributed import Client
@@ -76,7 +76,7 @@ dask.config.set(scheduler='threads')  # overwrite default with threaded schedule
 # dask.config.set(scheduler='processes')  # overwrite default with threaded scheduler
 
 
-# In[3]:
+# In[4]:
 
 
 # Parameters
@@ -91,7 +91,7 @@ cmod = 'climatology'
 runType = 'forecast'
 
 
-# In[4]:
+# In[5]:
 
 
 #############################################################
@@ -110,19 +110,19 @@ print(ds_81)
 print(ds_79)
 
 
-# In[5]:
+# In[6]:
 
 
 ds_81.time[0].values, ds_81.time[-1].values
 
 
-# In[6]:
+# In[7]:
 
 
 ds_79.time[0].values, ds_79.time[-1].values
 
 
-# In[7]:
+# In[8]:
 
 
 # Combine bootstrap with NASA NRT
@@ -141,14 +141,14 @@ da_sic.coords['week'] = xr.DataArray(weeks, dims='time', coords={'time':da_sic.t
 print(da_sic)
 
 
-# In[8]:
+# In[9]:
 
 
 ds_79 = None
 ds_81 = None
 
 
-# In[9]:
+# In[10]:
 
 
 # plot so we are sure this is going right
@@ -170,7 +170,7 @@ if PlotTest:
 
 # # Climatology forecast
 
-# In[ ]:
+# In[11]:
 
 
 TestPlot = False
@@ -257,7 +257,7 @@ if TestPlot:
     print('green/cyan dots are quadratic fit to lowess smoothed data')
 
 
-# In[ ]:
+# In[12]:
 
 
 #   this worked very poorly 
@@ -317,13 +317,13 @@ if TestPlot:
     axarr[1].set_title('fit in logit space')
 
 
-# In[10]:
+# In[13]:
 
 
 # This is the part that fits the weekly data, after lowess smoothing
 # it is pretty slow (couple of hours to fit 52 weeks)
-# we have to redo each year we want to compute the ClimoTrend because we want to use
-# the most up to date data as possible
+
+#pred_year = 2019  # had to force past years but now keep at current year for updates
 maxweeks = da_sic.sel(time=slice(str(pred_year-1),str(pred_year-1))).week.max().values
 
 for cweek in np.arange(1,maxweeks+1,1):
@@ -333,7 +333,7 @@ for cweek in np.arange(1,maxweeks+1,1):
 
 #    print(file_out)
 #    diehere
-    if ((os.path.isfile(file_out)) & (cweek<maxweeks)): # force redo last week each time
+    if ((os.path.isfile(file_out)) & (cweek<maxweeks)): # force redo last two week each time
         print(file_out,' has already been done')
         continue
 
@@ -361,6 +361,16 @@ for cweek in np.arange(1,maxweeks+1,1):
     ds_pred.load()  # load before saving forces calculation now
 
     # Save to disk
+
+    try:
+        nsz = os.path.getsize(file_out)
+        print('nc_weeks ', file_out, ' file size is ',nsz)
+        if nsz==0:
+            print('removing empty file ',file_out)
+            os.remove(file_out)
+    except os.error as e:
+            print('os.error is ',e) # not a problem if file doesn't exist rewritten below anyway
+                        
     ds_pred.to_netcdf(file_out)
     print("Saved",file_out)
     
@@ -368,7 +378,7 @@ for cweek in np.arange(1,maxweeks+1,1):
 
 # # Clim trend extrapolations
 
-# In[11]:
+# In[14]:
 
 
 test_plots = False
@@ -411,15 +421,14 @@ if test_plots:
     axes[2].set_title('fit param 0', fontsize=20)
 
 
-# In[14]:
+# In[19]:
 
 
 # Compute and Write the climo Trend for each week of the prediction year
+#pred_year = 2019  # had to force past years but now keep at current year for updates
+
 maxweeks = da_sic.sel(time=slice(str(pred_year-1),str(pred_year-1))).week.max().values
 print(maxweeks)
-
-#maxweeks = 52
-#pred_year = 2020  # want to do 2017 to 2020 need 2017 so can get one time before 2018
 
 for cweek in np.arange(1,maxweeks+1,1):
 
@@ -439,13 +448,18 @@ for cweek in np.arange(1,maxweeks+1,1):
     file_out = os.path.join(mod_dir, cmod, runType, 'sipn_nc_weekly', 
                                 str(pred_year)+'_week'+format(cweek, '02')+'_'+str(start_year)+'_'+str(pred_year - 1)+'_SIC.nc')
 
-    print(file_out)
-    print(file_in)
-
+#    print(file_out)
+#    print(file_in)
 
     if ((os.path.isfile(file_out)) & (cweek<maxweeks)): # force redo last week each time
-        print(file_out,' has already been done')
-        continue
+        #print(file_out,' has already been done, checking size')
+        nsz = os.path.getsize(file_out)
+        print('nc_weeks ', file_out, ' file size is ',nsz)
+        if nsz<3294896: 
+            print('removing file with wrong size,  < 3294896',file_out)
+            os.remove(file_out)
+        else:
+            continue
 
 
     ds = xr.open_mfdataset(file_in, autoclose=True, parallel=True)
@@ -465,13 +479,7 @@ for cweek in np.arange(1,maxweeks+1,1):
     print("Saved",file_out)
 
 
-# In[13]:
-
-
-
-
-
-# In[ ]:
+# In[33]:
 
 
 # Compute anomalies for purpose of computing alpha for damped persistence
@@ -485,7 +493,7 @@ update = False
 
 if update:
     start_year=1990
-    pred_year = 2018  
+    pred_year = 2020  
     end_year = pred_year - 1
 
     ds_79 = xr.open_mfdataset(E.obs['NSIDC_0079']['sipn_nc']+'_yearly_byweek/*byweek.nc', concat_dim='time', autoclose=True, parallel=True).sic
@@ -588,4 +596,5 @@ if test_plots:
     plt.ylabel('Sea Ice Concentration (-)')
     f_out = os.path.join(fig_dir,'linearfit.png')
     f.savefig(f_out,bbox_inches='tight', dpi=300)
+
 

@@ -19,7 +19,7 @@ def download_data_by_month(dataclass=None, main_dir=None,
     X = 1
 
     if dataclass=='s2s':
-        day_lag = 22
+        day_lag = 0
     elif dataclass=='c3':
         day_lag = 16
     else:

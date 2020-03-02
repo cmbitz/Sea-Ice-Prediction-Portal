@@ -13,6 +13,9 @@
 #set -x  # Echo all lines executed
 #set -e  # Stop on any error
 
+# This script automatically downloads observational data, computes a few of our benchmark metrics
+# also downloads and regrids YOPP model, other models are done in Main_Daily_Models.sh
+
 # Set up python paths
 source $HOME/.bashrc
 #source /home/disk/sipn/nicway/.bashrc  
@@ -31,6 +34,10 @@ failfunction()
     fi
 }
 
+cd /home/disk/sipn/nicway/public_html/sipn
+/home/disk/sipn/nicway/public_html/sipn/chngnum.sh
+
+
 # Make sure the ACF REPO_DIR environment variable is set
 if [ -z "$REPO_DIR" ]; then
     echo "Need to set REPO_DIR"
@@ -38,17 +45,12 @@ if [ -z "$REPO_DIR" ]; then
 fi
 
 # Call all download scripts that grab near-real-time data
-$REPO_DIR"/scripts/download_scripts/download_NSIDC_0081.sh" & # Fast
+$REPO_DIR"/scripts/download_scripts/download_NSIDC_0081.sh"  # Fast
 $REPO_DIR"/scripts/download_scripts/download_NSIDC_extents.sh"  # Fast
 echo "done with NSIDC downloads"
 failfunction "$?" "download_NSIDC_0081.sh or download_NSIDC_extents.sh had an Error. See log." 
 
-# YOPP Model downloads special so do here rather than Main_Daily
-python $REPO_DIR"/scripts/download_scripts/Download_YOPP_ECMWF.py"  # Slow (30 mins)
-failfunction "$?" "Download_YOPP_ECMWF had an Error. See log." 
-
-wait # Below depends on above
-echo "Main_6hrly: ready to move to notebooks directory"
+echo "Ready to move to notebooks directory"
 
 # Move to notebooks
 cd $REPO_DIR"/notebooks/" # Need to move here as some esiodata functions assume this
@@ -61,19 +63,19 @@ failfunction "$?" "Import_NSIDC_Obs.py had an Error. See log."
 python "./Import_NSIDC_Extents.py"
 failfunction "$?" "Import_NSIDC_Extents.py had an Error. See log." 
 
-echo "Main_6hrly: done importing to sipn_nc format"
+echo "Main_Daily_Obs: done importing"
 
 # Agg Obs to yearly files, weekly means, daily regional means, ClimoTrend of the daily regional means
 python "./Agg_NSIDC_Obs.py"
 failfunction "$?" "Agg_NSIDC_Obs.py had an Error. See log." 
 
-echo "Main_6hrly: done major analysis on obs in Agg_NSIDC_Obs"
+echo "Main_Daily_Obs: done major analysis on obs in Agg_NSIDC_Obs"
 
 # ClimoTrend of the weekly means, takes 5-10 mins usually, depends on previous 
 python "./Calc_Obs_ClimoTrendWeekly.py"
 failfunction "$?" "Agg_NSIDC_Obs.py had an Error. See log." 
 
-echo "Main_6hrly: done with Calc_Obs_ClimoTrendWeekly"
+echo "Main_Daily_Obs: done with Calc_Obs_ClimoTrendWeekly"
 
 # ClimoTrend of the weekly means, takes 5-10 mins usually, depends on previous
 python "./Interpolate_ClimoTrend_weekly_to_daily.py"
@@ -88,37 +90,41 @@ failfunction "$?" "Calc_Obs_DampanomWeekly.py had an Error. See log."
 python "./Calc_Obs_DampAnomDaily.py"
 failfunction "$?" "Calc_Obs_DampAnomDaily.py had an Error. See log."
 
-echo "Main_6hrly: done with DampAnom stuff"
+echo "Main_Daily_Obs: done with DampAnom stuff"
 
 # CC thinks this is working perhaps should modify to put the regional extents etc on clouds
 # Convert obs only to Zarr, not sure why exactly
 python "./Convert_netcdf_to_Zarr.py"
 failfunction "$?" "Convert_netcdf_to_Zarr.py had an Error. See log."
 
-# CC is not working cuz gsutil is not in my path, not sure where it is
-# Upload to GCP
-/home/disk/sipn/nicway/data/obs/zarr/update_obs.sh
+# Upload to GCP, worked but too expensive
+# /home/disk/sipn/nicway/data/obs/zarr/update_obs.sh
 
-# Import Models to sipn format
-source activate pynioNew # Requires new env
-python "./Regrid_YOPP.py"
-failfunction "$?" "Regrid_YOPP.py had an Error. See log." 
-
-source activate esio
-
-wait # Below depends on above
 
 # Make Plots
+cd $REPO_DIR"/notebooks/" # Need to move here as some esiodata functions assume this
 
 # Observations
 echo "plot observations"
 python "./plot_observations.py" 
 failfunction "$?" "plot_observations.py had an Error. See log." 
 
-# Availblity plots
-echo "plot forecast availability"
-python "./plot_forecast_availability.py" &
-failfunction "$?" "plot_forecast_availability.py had an Error. See log." 
+
+# Availblity plots, giving memory errors now so skip until have time to fix
+#echo "plot forecast availability"
+#python "./plot_forecast_availability.py" &
+#failfunction "$?" "plot_forecast_availability.py had an Error. See log." 
 
 
-echo Finished NRT script but python still running to make plots.
+# YOPP Model downloads special so do here rather than Main_Daily
+python $REPO_DIR"/scripts/download_scripts/Download_YOPP_ECMWF.py"  # Slow (30 mins)
+failfunction "$?" "Download_YOPP_ECMWF had an Error. See log." 
+
+# Import Models to sipn format
+source activate pynioNew # Requires new env
+python "./Regrid_YOPP.py"
+failfunction "$?" "Regrid_YOPP.py had an Error. See log." 
+
+
+
+echo Finished Daily_obs script

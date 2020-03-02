@@ -70,9 +70,80 @@ sns.set_context("talk", font_scale=.8, rc={"lines.linewidth": 2.5})
 # In[3]:
 
 
+# Plotting Info
+runType = 'forecast'
+variables = ['sic']
+metrics_all = {'sic':['anomaly','mean','SIP'], 'hi':['mean']}
+
+Ndays = 7 # time period to aggregate maps to (default is 7, all hell could break loose if changed)
+
+updateAll = False  # when this is false we do not remake figures done already except the last NweeksUpdate
+
+Npers =  4  # number of weeks to potentially plot counting back from current date 
+            # BUT only remake those already made if updateAll = TRUE
+            # about once every few months should do an updateALL = TRUE to fill in obs and other delayed data
+
+NweeksUpdate = 2 #3 # Always update the most recent NweeksUpdate weeks (usually 2 or 3 )
+
+
+
+# Exclude some models
+MME_NO = ['hcmr']
+
+# Define Init Periods here, spaced by 7 days (aprox a week)
+# Now
+cd = datetime.datetime.now()
+cd = datetime.datetime(cd.year, cd.month, cd.day) # Set hour min sec to 0. 
+#cd = datetime.datetime(cd.year, 3, 4)  # force redo of period ending 2019-03-03
+#cd = datetime.datetime(cd.year, 4, 20)  # force redo of 2019-04-14
+#cd = datetime.datetime(cd.year, 4, 10)  # force redo of 2019-04-07
+
+#cd = datetime.datetime(cd.year, 5, 8)  # force redo of 2019-04-07
+
+# Hardcoded start date (makes incremental weeks always the same)
+start_t = datetime.datetime(1950, 1, 1) # datetime.datetime(1950, 1, 1)
+init_slice = np.arange(start_t, cd, datetime.timedelta(days=Ndays)).astype('datetime64[ns]')
+init_slice = init_slice[-Npers:] # Select only the last Npers of periods (weeks) since current date
+
+
+
+# Forecast times to plot
+weeks = pd.to_timedelta(np.arange(0,5,1), unit='W')
+morewks = pd.to_timedelta([9,13,17,22,26], unit='W')
+
+slices = weeks.union(morewks).round('1d')
+da_slices = xr.DataArray(slices, dims=('fore_time'))
+print('forecast time slices to plot in days:')
+print(da_slices.fore_time.values.astype('timedelta64[D]'))
+
+# Help conversion between "week/month" period used for figure naming and the actual forecast time delta value
+int_2_days_dict = dict(zip(np.arange(0,da_slices.size), da_slices.values))
+days_2_int_dict = {v: k for k, v in int_2_days_dict.items()}
+
+
+# In[4]:
+
+
+# doint this temporarily to force remake of a few times in the past
+#updateAll = True
+#print(init_slice[16:])
+#init_slice=init_slice[16:]
+
+
+# In[5]:
+
+
+#init_slice=init_slice[0:16]
+#updateAll = True
+# had Npers = 30
+
+
+# In[6]:
+
+
 E = ed.EsioData.load()
 
-# add missing info for climatology
+# add missing info for climatology, but do not use anymore
 E.model_color['climatology'] = (0,0,0)
 E.model_linestyle['climatology'] = '--'
 E.model_marker['climatology'] = '*'
@@ -91,95 +162,57 @@ models_2_plot = [x for x in models_2_plot if x not in ['usnavygofs']] # remove s
 
 print(models_2_plot)
 
+
+# In[7]:
+
+
 models_2_plot = ['MME']+models_2_plot # Add models to always plot at top
 models_2_plot.insert(1, models_2_plot.pop(-1)) # Move climatology from last to second
 
-# arrange in order of models that have longest lead times
-models_2_plot.insert(13, models_2_plot.pop(4)) # Move yopp
-models_2_plot.insert(6, models_2_plot.pop(11)) # Move NESM-ext
-models_2_plot.insert(7, models_2_plot.pop(10)) # Move KMA
-models_2_plot.insert(7, models_2_plot.pop(15)) # Move fgoalssipn
-#models_2_plot[1]='climo10yrs'
-print(models_2_plot)
+# arrange in order of models that have longest lead times, OLD
+##models_2_plot.insert(13, models_2_plot.pop(4)) # Move yopp
+##models_2_plot.insert(6, models_2_plot.pop(11)) # Move NESM-ext
+##models_2_plot.insert(7, models_2_plot.pop(10)) # Move KMA
+##models_2_plot.insert(7, models_2_plot.pop(15)) # Move fgoalssipn
 
+# arrange in order of models that have longest lead times
+models_2_plot.insert(14, models_2_plot.pop(4)) # Move yopp
+models_2_plot.insert(6, models_2_plot.pop(12)) # Move NESM-ext
+models_2_plot.insert(7, models_2_plot.pop(6)) # Move MF
+models_2_plot.insert(8, models_2_plot.pop(11)) # Move KMA
+models_2_plot.insert(8, models_2_plot.pop(16)) # Move fgoalssipn
+
+# switch to climo10 yrs and
 # add missing info for climo10yrs for future
+models_2_plot[1]='climo10yrs'
 E.model_color['climo10yrs'] = (0,0,0)
 E.model_linestyle['climo10yrs'] = '--'
 E.model_marker['climo10yrs'] = '*'
 E.model['climo10yrs'] = {'model_label':'Climatology\nLast 10 Yrs'}
 E.icePredicted['climo10yrs'] = True
-#models_2_plot[1]='climo10yrs'
-
-
-# In[4]:
-
 
 print(models_2_plot)
+
+
+# In[8]:
+
 
 models_2_plot_master ={0: models_2_plot,
                        1: models_2_plot,
                        2: models_2_plot,
-                       3: models_2_plot[0:14],
-                       4: models_2_plot[0:13],
-                       5: models_2_plot[0:8],
-                       6: models_2_plot[0:8],
-                       7: models_2_plot[0:7],
-                       8: models_2_plot[0:7],
-                       9: models_2_plot[0:7]  }
+                       3: models_2_plot[0:15],
+                       4: models_2_plot[0:14],
+                       5: models_2_plot[0:9],
+                       6: models_2_plot[0:9],
+                       7: models_2_plot[0:8],
+                       8: models_2_plot[0:8],
+                       9: models_2_plot[0:8]  }
 
 for iweek in np.arange(0,10,1):
     print('for week  ',iweek,' models are:' ,models_2_plot_master[iweek])
 
 
-# In[5]:
-
-
-# Plotting Info
-runType = 'forecast'
-variables = ['sic']
-metrics_all = {'sic':['anomaly','mean','SIP'], 'hi':['mean']}
-updateAll = False
-
-# Exclude some models
-MME_NO = ['hcmr']
-
-# Define Init Periods here, spaced by 7 days (aprox a week)
-# Now
-cd = datetime.datetime.now()
-cd = datetime.datetime(cd.year, cd.month, cd.day) # Set hour min sec to 0. 
-#cd = datetime.datetime(cd.year, 3, 4)  # force redo of period ending 2019-03-03
-#cd = datetime.datetime(cd.year, 4, 20)  # force redo of 2019-04-14
-#cd = datetime.datetime(cd.year, 4, 10)  # force redo of 2019-04-07
-
-#cd = datetime.datetime(cd.year, 5, 8)  # force redo of 2019-04-07
-
-# Hardcoded start date (makes incremental weeks always the same)
-start_t = datetime.datetime(1950, 1, 1) # datetime.datetime(1950, 1, 1)
-# Params for this plot
-Ndays = 7 # time period to aggregate maps to (default is 7)
-Npers =  5 # 5 number of periods to plot (from current date) (default is 14)
-NweeksUpdate = 3 #3 # 3 Always update the most recent NweeksUpdate periods
-init_slice = np.arange(start_t, cd, datetime.timedelta(days=Ndays)).astype('datetime64[ns]')
-init_slice = init_slice[-Npers:] # Select only the last Npers of periods (weeks) since current date
-print(init_slice)
-
-# Forecast times to plot
-weeks = pd.to_timedelta(np.arange(0,5,1), unit='W')
-morewks = pd.to_timedelta([9,13,17,22,26], unit='W')
-# months = pd.to_timedelta(np.arange(2,12,1), unit='M')
-# years = pd.to_timedelta(np.arange(1,2), unit='Y') - np.timedelta64(1, 'D') # need 364 not 365
-# slices = weeks.union(months).union(years).round('1d')
-slices = weeks.union(morewks).round('1d')
-da_slices = xr.DataArray(slices, dims=('fore_time'))
-print('forecast time slices to plot in days:')
-print(da_slices.fore_time.values.astype('timedelta64[D]'))
-
-# Help conversion between "week/month" period used for figure naming and the actual forecast time delta value
-int_2_days_dict = dict(zip(np.arange(0,da_slices.size), da_slices.values))
-days_2_int_dict = {v: k for k, v in int_2_days_dict.items()}
-
-
-# In[6]:
+# In[9]:
 
 
 # Get median ice edge by DOY
@@ -190,20 +223,21 @@ mean_1980_2010_sic = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_
 mean_1980_2010_SIP = xr.open_dataset(os.path.join(E.obs_dir, 'NSIDC_0051', 'agg_nc', 'hist_SIP_1980_2010.nc')).sip    
 
 
-# In[7]:
+# In[10]:
 
 
 def get_figure_init_times(fig_dir):
     # Get list of all figures
-    fig_files = glob.glob(os.path.join(fig_dir,'*.png'))
+    fig_files = glob.glob(os.path.join(fig_dir,'*/*.png'))
     init_times = list(reversed(sorted(list(set([os.path.basename(x).split('_')[3] for x in fig_files])))))
     return init_times
 
 
-# In[8]:
+# In[11]:
 
 
 def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpdate=3):
+    # function to populate the status with 1 if the fig has been made or leave it set to nan if unmade
     # Get list of all figures
     fig_files = glob.glob(os.path.join(fig_dir,'*.png'))
     # For each figure
@@ -221,8 +255,61 @@ def update_status(ds_status=None, fig_dir=None, int_2_days_dict=None, NweeksUpda
         
     return ds_status
 
+# this bit is just to try to figure out what this code does
+DontSkipThis = False
 
-# In[9]:
+if DontSkipThis:
+
+    cvar = 'sic'
+    fig_dir = os.path.join(E.fig_dir, 'model', 'all_model', cvar, "Regional_maps_NEW")
+
+
+    ds_status = xr.DataArray(np.ones((init_slice.size, da_slices.size))*np.NaN, 
+                                 dims=('init_time','fore_time'), 
+                                 coords={'init_time':init_slice,'fore_time':da_slices}) 
+    ds_status.name = 'status'
+    ds_status = ds_status.to_dataset()
+
+    print(ds_status)
+
+    print('ds_status.init_time.values ',ds_status.init_time.values)
+    print('ds_status.fore_time.values ',ds_status.fore_time.values)
+    print('ds_status.fore_time.values ',ds_status.status.values)
+
+    # Check what plots we already have
+    print("Set status to 1 for figures we have already made")
+
+    # Get list of all figures
+    fig_files = glob.glob(os.path.join(fig_dir,'*.png'))
+#    print(fig_files)
+    # For each figure
+    for fig_f in fig_files:
+        # Get the init_time from file name
+        cit = os.path.basename(fig_f).split('_')[4]
+        # Get the forecast int from file name
+        #print(fig_f)
+        cft = int(os.path.basename(fig_f).split('_')[5].split('.')[0])
+        #print(cit, cft)
+        # Check if current it and ft were requested, otherwise skip
+        if (np.datetime64(cit) in ds_status.init_time.values) & (np.timedelta64(int_2_days_dict[cft]) in ds_status.fore_time.values):
+            # Always update the last 3 weeks (some models have lagg before we get them)
+            # Check if cit is one of the last NweeksUpdate init times in init_time
+            if (np.datetime64(cit) not in ds_status.init_time.values[-NweeksUpdate:]):
+                ds_status.status.loc[dict(init_time=cit, fore_time=int_2_days_dict[cft])] = 1
+
+
+    print(ds_status.status.values)
+
+    # Drop IC/FT for figures we have already made
+    ds_status = ds_status.where(ds_status.status.sum(dim='fore_time')<ds_status.fore_time.size, drop=True)
+
+    print('ds_status.init_time.values ',ds_status.init_time.values)
+    print('ds_status.fore_time.values ',ds_status.status.values)
+
+
+
+
+# In[12]:
 
 
 ds_region = xr.open_dataset(os.path.join(E.grid_dir, 'sio_2016_mask_Update.nc'))
@@ -236,17 +323,13 @@ reg2plot = (2,3,4,(6,7),(8,9),(10,11),(12,13),15)
 print(reg2plot)
 
 
-# In[10]:
+# In[13]:
 
 
-#plt.figure()
-#tmp=ds_region.mask
-#tmp=tmp.where(tmp<20,other=np.nan)
-###ds_region.mask.plot()
-#tmp.plot()
+init_slice
 
 
-# In[11]:
+# In[17]:
 
 
 def Update_PanArctic_Maps():
@@ -261,15 +344,14 @@ def Update_PanArctic_Maps():
 
     # Check what plots we already have
     if not updateAll:
-        print("Removing figures we have already made")
+        print("set status to 1 for figures we have already made, so we do not remake. Just make nans")
         ds_status = update_status(ds_status=ds_status, fig_dir=fig_dir, 
                                   int_2_days_dict=int_2_days_dict, 
                                   NweeksUpdate=NweeksUpdate)
 
-
-    print(ds_status.status.values)
-    # Drop IC/FT we have already plotted (orthoginal only)
-    ds_status = ds_status.where(ds_status.status.sum(dim='fore_time')<ds_status.fore_time.size, drop=True)
+        print(ds_status.status.values)
+        # Drop IC/FT we have already plotted (orthoginal only)
+        ds_status = ds_status.where(ds_status.status.sum(dim='fore_time')<ds_status.fore_time.size, drop=True)
 
     print("Starting plots...")
     # For each init_time we haven't plotted yet
@@ -309,15 +391,15 @@ def Update_PanArctic_Maps():
 
             models_2_plot=models_2_plot_master[ift]
             print('models to plot ',models_2_plot)
-            # Get # of models and setup subplot dims
-            Nmod = len(models_2_plot) + 2  #(+3 for obs, MME, and clim)
-            Nc = int(np.floor(np.sqrt(Nmod)))
-            # Max number of columns == 5 (plots get too small otherwise)
-            Nc = 5 #np.min([Nc,5])
-            Nr = int(np.ceil((Nmod-1)/Nc))
-            print(Nr, Nc, Nmod)
-            assert Nc*Nr>=Nmod-1, 'Need more subplots'
-
+            
+            Nmod = len(models_2_plot) + 2  
+            if ift==0:
+                Nc = int(np.floor(np.sqrt(Nmod)))
+                # Max number of columns == 5 (plots get too small otherwise)
+                Nc = 5 #np.min([Nc,5])
+                Nr = int(np.ceil((Nmod-1)/Nc))
+                print(Nr, Nc, Nmod)
+                assert Nc*Nr>=Nmod-1, 'Need more subplots'
 
             # Loop through variable of interest + any metrics (i.e. SIP) based on that
             for metric in metrics_all[cvar]:
@@ -403,7 +485,7 @@ def Update_PanArctic_Maps():
                           add_colorbar=False,
                           cmap=cmap_c,
                           vmin=c_vmin, vmax=c_vmax)
-                        axes[ax_num].set_title('Hist. Obs.', fontsize=10)
+                        axes[ax_num].set_title('Climatology\nLast 1980-2010', fontsize=10)
                     else:
                         textstr = 'Not Available'
                         # these are matplotlib.patch.Patch properties
@@ -479,22 +561,25 @@ def Update_PanArctic_Maps():
                 init_time_1 =  pd.to_datetime(it_start).strftime('%Y-%m-%d')
                 valid_time_2 = pd.to_datetime(it+ft).strftime('%Y-%m-%d')
                 valid_time_1 = pd.to_datetime(it_start+ft).strftime('%Y-%m-%d')
-                if ift<3: 
-                    titlesize=15
-                elif ift<5:
-                    titlesize=13
-                else:
-                    titlesize=11
+
+                titlesize=15
+                #if ift<3: 
+                #    titlesize=15
+                #elif ift<5:
+                #    titlesize=13
+                #else:
+                #    titlesize=11
                 plt.suptitle('Initialization Time: '+init_time_1+' to '+init_time_2+'\n Valid Time: '+valid_time_1+' to '+valid_time_2,
                              fontsize=titlesize) # +'\n Week '+week_str
 
-                if (ift>4):
-                    plt.subplots_adjust(top=0.75)
-                else:
-                    plt.subplots_adjust(top=0.85)
+                plt.subplots_adjust(top=0.85)
+                #if (ift>4):
+                #    plt.subplots_adjust(top=0.75)
+                #else:
+                #    plt.subplots_adjust(top=0.85)
 
                 # Save to file
-                f_out = os.path.join(fig_dir,'panArctic_'+metric+'_'+runType+'_'+init_time_2+'_'+cs_str+'.png')
+                f_out = os.path.join(fig_dir,init_time_2[0:4],'panArctic_'+metric+'_'+runType+'_'+init_time_2+'_'+cs_str+'.png')
                 f.savefig(f_out,bbox_inches='tight', dpi=200)
                 print("saved ", f_out)
                 #print("Figure took  ", (timeit.default_timer() - start_time_plot)/60, " minutes.")
@@ -528,7 +613,13 @@ def Update_PanArctic_Maps():
     print("Finished plotting panArctic Maps.")
 
 
-# In[12]:
+# In[18]:
+
+
+init_slice
+
+
+# In[ ]:
 
 
 if __name__ == '__main__':
@@ -558,5 +649,31 @@ if __name__ == '__main__':
 
 
 #client.close()
+
+
+# In[ ]:
+
+
+#cvar='sic'
+#ds_ALL = xr.open_zarr(os.path.join(E.data_dir,'model/zarr',cvar+'.zarr'))
+
+
+# In[ ]:
+
+
+#ds_ALL.sel(model=b'climo10yrs').isel(init_end=78).isel(fore_time=4)['anomaly'].plot()
+#ds_ALL.sel(model=b'climo10yrs').isel(init_end=78)
+
+
+# In[ ]:
+
+
+#tmp=xr.open_mfdataset('/home/disk/sipn/nicway/data/model/MME_NEW/forecast/sipn_nc/sic/mean/2019-10-13/climo10yrs/2019-11-03_climo10yrs.nc')
+
+
+# In[ ]:
+
+
+#tmp['mean'].plot()
 
 
